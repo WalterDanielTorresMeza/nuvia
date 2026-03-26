@@ -26,12 +26,12 @@ export const usePatientsStore = create((set, get) => ({
       .select(`
         *,
         clinical_background(*),
-        vital_signs(* order by fecha desc limit 10),
-        medications(* order by created_at desc),
-        vaccines(* order by fecha_aplicacion desc),
-        diets(* order by created_at desc),
-        appointments(* order by fecha_hora desc limit 20),
-        consultations(* order by fecha desc limit 20)
+        vital_signs(*),
+        medications(*),
+        vaccines(*),
+        diets(*),
+        appointments(*),
+        consultations(*)
       `)
       .eq('id', id)
       .single()
