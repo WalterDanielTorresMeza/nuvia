@@ -1,10 +1,10 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { calcEdad } from '../utils'
 import {
   Video, PhoneOff, Copy, Check, Loader2, ChevronRight,
-  Clock, CalendarDays, Users, Wifi, ExternalLink, X,
+  Clock, CalendarDays, Wifi, ExternalLink,
   PanelRightClose, PanelRightOpen, AlertCircle,
 } from 'lucide-react'
 import { FaDroplet, FaMars, FaVenus } from 'react-icons/fa6'
@@ -317,7 +317,7 @@ export default function ConsultationsVideoPage() {
         .from('appointments')
         .select('*, patients(id, nombre, apellidos, telefono, fecha_nacimiento, tipo_sangre, sexo)')
         .eq('tipo', 'videoconsulta')
-        .not('estado', 'in', '("cancelada","completada","no_asistio")')
+        .in('estado', ['programada', 'confirmada'])
         .order('fecha_hora')
       setAppointments(data || [])
     } finally {
@@ -331,18 +331,21 @@ export default function ConsultationsVideoPage() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  // Group appointments
-  const now = new Date()
+  // Group appointments — every appointment must land in exactly one bucket
+  const now     = new Date()
+  const ago1h   = new Date(now.getTime() - 3600000)
+  const ahead1h = new Date(now.getTime() + 3600000)
   const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
   const weekEnd  = new Date(now.getTime() + 7 * 86400000)
 
+  const pending  = appointments.filter(a => new Date(a.fecha_hora) < ago1h)           // past > 1h, still open
   const imminent = appointments.filter(a => {
     const d = new Date(a.fecha_hora)
-    return d >= new Date(now.getTime() - 3600000) && d <= new Date(now.getTime() + 3600000)
+    return d >= ago1h && d <= ahead1h
   })
   const todayRest = appointments.filter(a => {
     const d = new Date(a.fecha_hora)
-    return d > new Date(now.getTime() + 3600000) && d <= todayEnd
+    return d > ahead1h && d <= todayEnd
   })
   const thisWeek = appointments.filter(a => {
     const d = new Date(a.fecha_hora)
@@ -459,10 +462,11 @@ export default function ConsultationsVideoPage() {
 
         ) : (
           <div className="space-y-8">
-            <Section title="⚡ En curso o pronto (±1 hora)" items={imminent} color="text-blue-600" />
-            <Section title="📅 Más tarde hoy"              items={todayRest} color="text-slate-600" />
-            <Section title="📆 Esta semana"                items={thisWeek}  color="text-slate-500" />
-            <Section title="🗓 Más adelante"               items={later}     color="text-slate-400" />
+            <Section title="⚡ En curso o pronto (±1 hora)" items={imminent}  color="text-blue-600" />
+            <Section title="📅 Más tarde hoy"               items={todayRest} color="text-slate-600" />
+            <Section title="📆 Esta semana"                 items={thisWeek}  color="text-slate-500" />
+            <Section title="🗓 Más adelante"                items={later}     color="text-slate-400" />
+            <Section title="⏳ Pendientes de cerrar"        items={pending}   color="text-amber-600" />
           </div>
         )}
       </div>

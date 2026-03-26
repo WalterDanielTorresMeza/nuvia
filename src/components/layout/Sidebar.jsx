@@ -11,7 +11,7 @@ const navItems = [
   { to: '/dashboard',    icon: BarChart3,  label: 'Dashboard' },
   { to: '/pacientes',    icon: Users,      label: 'Pacientes' },
   { to: '/agenda',       icon: Calendar,   label: 'Agenda' },
-  { to: '/consultas',    icon: Video,      label: 'Consultas' },
+  { to: '/consultas',    icon: Video,      label: 'Videoconsultas' },
   { to: '/facturacion',  icon: Receipt,    label: 'Facturación' },
   { to: '/reportes',     icon: FileText,   label: 'Reportes' },
   { to: '/configuracion',icon: Settings,   label: 'Configuración' },

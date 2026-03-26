@@ -49,7 +49,7 @@ export default function AppointmentsPage() {
   const { doctor }                                = useAuthStore()
   const { appointments, loading, fetchAppointments, updateEstado } = useAppointmentsStore()
   const [showModal, setShowModal] = useState(false)
-  const [filter, setFilter]       = useState('proximas')
+  const [filter, setFilter]       = useState('todas')
 
   useEffect(() => {
     if (patients.length === 0) fetchPatients()
