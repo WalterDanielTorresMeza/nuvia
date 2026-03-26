@@ -88,6 +88,7 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
   const [finishing, setFinishing] = useState(false)
   const [consultId, setConsultId] = useState(consultation?.id || null)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   const [form, setForm] = useState({
     motivo:                  consultation?.motivo || '',
@@ -127,28 +128,38 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
     const payload = { ...form, estado, patient_id: patient.id, doctor_id: doctor?.id }
     if (consultId) {
       const { error } = await supabase.from('consultations').update(payload).eq('id', consultId)
-      return !error
+      if (error) return error.message
+      return null
     }
     const { data, error } = await supabase.from('consultations').insert([payload]).select().single()
-    if (!error && data) { setConsultId(data.id); return true }
-    return false
+    if (error) return error.message
+    if (data) setConsultId(data.id)
+    return null
   }
 
   const handleSave = async () => {
     setSaving(true)
-    await saveData()
+    setSaveError('')
+    const err = await saveData()
     setSaving(false)
+    if (err) {
+      setSaveError(err)
+      return
+    }
     setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    setTimeout(() => setSaved(false), 2500)
     fetchPatient(patient.id)
     onSaved?.()
   }
 
   const handleFinish = async () => {
     setFinishing(true)
-    const ok = await saveData('terminada')
+    setSaveError('')
+    const err = await saveData('terminada')
     setFinishing(false)
-    if (ok) { fetchPatient(patient.id); onClose() }
+    if (err) { setSaveError(err); return }
+    fetchPatient(patient.id)
+    onClose()
   }
 
   const addMed = () => set('medicamentos_receta', [...form.medicamentos_receta, { nombre: '', dosis: '', frecuencia: '', duracion: '' }])
@@ -193,6 +204,11 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
 
           {/* Right: actions */}
           <div className="flex items-center gap-2">
+            {saveError && (
+              <span className="text-xs text-red-600 bg-red-50 border border-red-200 px-3 py-1.5 rounded-xl max-w-xs truncate">
+                ⚠ {saveError}
+              </span>
+            )}
             <button onClick={handleSave} disabled={saving}
               className={cn('flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-all',
                 saved ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50')}>

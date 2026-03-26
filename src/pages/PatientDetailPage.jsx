@@ -186,7 +186,12 @@ export default function PatientDetailPage() {
   const meds = p.medications || []
   const activeMeds = meds.filter(m => m.activo)
   const vaccines = p.vaccines || []
-  const consultations = [...(p.consultations || [])].sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+  const consultations = [...(p.consultations || [])].sort((a, b) => {
+    // Activas primero, luego terminadas; dentro de cada grupo, más reciente arriba
+    if (a.estado !== 'terminada' && b.estado === 'terminada') return -1
+    if (a.estado === 'terminada' && b.estado !== 'terminada') return 1
+    return new Date(b.fecha) - new Date(a.fecha)
+  })
   const activeProblems = problems.filter(x => x.estado === 'activo')
   const lastConsult = consultations[0]
   const alergias = p.clinical_background?.alergias

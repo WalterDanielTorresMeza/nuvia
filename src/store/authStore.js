@@ -43,8 +43,8 @@ export const useAuthStore = create((set, get) => ({
     return true
   },
 
-  logout: async () => {
-    await supabase.auth.signOut()
+  logout: () => {
     set({ user: null, doctor: null })
+    supabase.auth.signOut()
   },
 }))
