@@ -31,18 +31,18 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <MainLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <MainLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard"     element={<DashboardPage />} />
             <Route path="pacientes"     element={<PatientsPage />} />
             <Route path="pacientes/:id" element={<PatientDetailPage />} />
@@ -51,10 +51,10 @@ export default function App() {
             <Route path="facturacion"   element={<BillingPage />} />
             <Route path="reportes"      element={<ReportsPage />} />
             <Route path="configuracion" element={<ConfigPage />} />
-          </Suspense>
-        </Route>
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+          </Route>
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }
