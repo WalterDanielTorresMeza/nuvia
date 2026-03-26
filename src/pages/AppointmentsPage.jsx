@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { usePatientsStore } from '../store/patientsStore'
+import { useAuthStore } from '../store/authStore'
 import {
   Plus, Loader2, Calendar, X, AlertTriangle
 } from 'lucide-react'
@@ -33,10 +34,11 @@ function detectsConflict(existing, newStart, newEnd) {
 /* ══════════════════════════════════════════════ */
 export default function AppointmentsPage() {
   const { patients, fetchPatients }  = usePatientsStore()
+  const { doctor } = useAuthStore()
   const [appointments, setAppointments] = useState([])
   const [loading, setLoading]        = useState(true)
   const [showModal, setShowModal]    = useState(false)
-  const [filter, setFilter]          = useState('hoy')
+  const [filter, setFilter]          = useState('todas')
 
   useEffect(() => {
     if (patients.length === 0) fetchPatients()
@@ -202,9 +204,13 @@ export default function AppointmentsPage() {
       {showModal && (
         <NewAppointmentModal
           patients={patients}
+          doctorId={doctor?.id}
           existingAppointments={appointments}
           onClose={() => setShowModal(false)}
-          onSaved={fetchData}
+          onSaved={() => {
+            if (filter !== 'todas') setFilter('todas')
+            else fetchData()
+          }}
         />
       )}
     </div>
@@ -241,6 +247,8 @@ export function NewAppointmentModal({ patients, doctorId, existingAppointments =
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (!form.patient_id) { setError('Selecciona un paciente.'); return }
+    if (!form.fecha_hora) { setError('Selecciona fecha y hora.'); return }
     if (conflict) { setError('Hay un conflicto de horario con otra cita. Cambia la fecha u hora.'); return }
 
     setSaving(true)
@@ -249,7 +257,8 @@ export function NewAppointmentModal({ patients, doctorId, existingAppointments =
     // Resolve doctor_id — use prop if available, otherwise query DB directly
     let did = doctorId
     if (!did) {
-      const { data: doc } = await supabase.from('doctors').select('id').single()
+      const { data: doc, error: docErr } = await supabase.from('doctors').select('id').single()
+      if (docErr) console.error('Error fetching doctor:', docErr)
       did = doc?.id
     }
     if (!did) {
@@ -261,7 +270,7 @@ export function NewAppointmentModal({ patients, doctorId, existingAppointments =
     const { error: dbErr } = await supabase.from('appointments').insert([{
       patient_id:   form.patient_id,
       doctor_id:    did,
-      fecha_hora:   form.fecha_hora,
+      fecha_hora:   new Date(form.fecha_hora).toISOString(),
       duracion_min: parseInt(form.duracion_min),
       tipo:         form.tipo,
       estado:       form.estado,
@@ -269,7 +278,11 @@ export function NewAppointmentModal({ patients, doctorId, existingAppointments =
       notas:        form.notas  || null,
     }])
     setSaving(false)
-    if (dbErr) { setError(dbErr.message); return }
+    if (dbErr) {
+      console.error('Error saving appointment:', dbErr)
+      setError(dbErr.message)
+      return
+    }
     onSaved?.()
     onClose()
   }
