@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePatientsStore } from '../store/patientsStore'
 import { supabase } from '../lib/supabase'
 import {
   ArrowLeft, Edit2, Plus, Loader2, ChevronDown, ChevronUp,
-  CheckCircle, Clock, XCircle, Calendar
+  CheckCircle, Clock, XCircle, Calendar, Trash2, Upload, FileText
 } from 'lucide-react'
 import {
   FaStethoscope, FaHeartPulse, FaWeightScale, FaLungs,
@@ -87,6 +87,23 @@ function AddBtn({ onClick, label = 'Agregar' }) {
   )
 }
 
+function DeleteBtn({ onDelete, label = '' }) {
+  const [confirm, setConfirm] = useState(false)
+  if (confirm) return (
+    <span className="flex items-center gap-1">
+      <span className="text-xs text-slate-400">¿Eliminar?</span>
+      <button onClick={onDelete} className="text-xs text-red-600 font-semibold hover:underline">Sí</button>
+      <button onClick={() => setConfirm(false)} className="text-xs text-slate-400 hover:underline">No</button>
+    </span>
+  )
+  return (
+    <button onClick={() => setConfirm(true)} title={label || 'Eliminar'}
+      className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
+      <Trash2 className="w-3.5 h-3.5" />
+    </button>
+  )
+}
+
 /* ─── stat card ─────────────────────────────────────────────────── */
 function StatCard({ icon: Icon, iconBg, iconColor, label, value, sub, alert }) {
   return (
@@ -125,30 +142,33 @@ export default function PatientDetailPage() {
   const navigate = useNavigate()
   const { fetchPatient, currentPatient, loading, updateMedication } = usePatientsStore()
 
-  const [showEdit, setShowEdit]           = useState(false)
-  const [openConsult, setOpenConsult]     = useState(null)
-  const [problems, setProblems]           = useState([])
-  const [notes, setNotes]                 = useState([])
-  const [files, setFiles]                 = useState([])
+  const [showEdit, setShowEdit]             = useState(false)
+  const [openConsult, setOpenConsult]       = useState(null)
+  const [problems, setProblems]             = useState([])
+  const [notes, setNotes]                   = useState([])
+  const [files, setFiles]                   = useState([])
   const [showVitalsForm, setShowVitalsForm] = useState(false)
-  const [showMedForm, setShowMedForm]     = useState(false)
-  const [showVaxForm, setShowVaxForm]     = useState(false)
-  const [showProbForm, setShowProbForm]   = useState(false)
+  const [showMedForm, setShowMedForm]       = useState(false)
+  const [showVaxForm, setShowVaxForm]       = useState(false)
+  const [showProbForm, setShowProbForm]     = useState(false)
+  const [showNoteForm, setShowNoteForm]     = useState(false)
 
   useEffect(() => { fetchPatient(id) }, [id])
 
-  useEffect(() => {
+  const loadExtras = () => {
     if (!id) return
     Promise.all([
       supabase.from('patient_problems').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
-      supabase.from('clinical_notes').select('*').eq('patient_id', id).order('created_at', { ascending: false }).limit(3),
-      supabase.from('patient_files').select('*').eq('patient_id', id).order('created_at', { ascending: false }).limit(6),
+      supabase.from('clinical_notes').select('*').eq('patient_id', id).order('created_at', { ascending: false }).limit(10),
+      supabase.from('patient_files').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
     ]).then(([{ data: p }, { data: n }, { data: f }]) => {
       setProblems(p || [])
       setNotes(n || [])
       setFiles(f || [])
     })
-  }, [id])
+  }
+
+  useEffect(() => { loadExtras() }, [id])
 
   if (loading) return (
     <div className="flex items-center justify-center py-32">
@@ -173,7 +193,6 @@ export default function PatientDetailPage() {
 
   const imc = latest?.imc
   const imcInfo = imc ? clasificarIMC(imc) : null
-
   const imcColor = !imcInfo ? 'text-slate-800'
     : imcInfo.label === 'Normal' ? 'text-emerald-600'
     : imcInfo.label?.includes('Obesidad') ? 'text-red-600'
@@ -181,13 +200,18 @@ export default function PatientDetailPage() {
 
   const sexLabel = { M: 'Masculino', F: 'Femenino', Otro: 'Otro' }
 
-  const refresh = () => {
-    fetchPatient(id)
+  const refreshProblems = () =>
     supabase.from('patient_problems').select('*').eq('patient_id', id).order('created_at', { ascending: false })
       .then(({ data }) => setProblems(data || []))
-  }
 
-  // Chart data: last 7 vitals reversed (oldest→newest)
+  const refreshNotes = () =>
+    supabase.from('clinical_notes').select('*').eq('patient_id', id).order('created_at', { ascending: false }).limit(10)
+      .then(({ data }) => setNotes(data || []))
+
+  const refreshFiles = () =>
+    supabase.from('patient_files').select('*').eq('patient_id', id).order('created_at', { ascending: false })
+      .then(({ data }) => setFiles(data || []))
+
   const chartData = vitals.slice(0, 7).reverse().map(v => ({
     fecha: formatFecha(v.fecha),
     pas: v.presion_sistolica,
@@ -206,10 +230,7 @@ export default function PatientDetailPage() {
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">Pacientes</span>
           </button>
-
           <div className="w-px h-6 bg-slate-200 flex-shrink-0" />
-
-          {/* Avatar + name */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="w-10 h-10 bg-gradient-to-br from-primary-400 to-primary-600 rounded-2xl flex items-center justify-center font-bold text-white text-sm flex-shrink-0 shadow-sm">
               {p.nombre?.[0]}{p.apellidos?.[0]}
@@ -221,19 +242,15 @@ export default function PatientDetailPage() {
               <p className="text-xs text-slate-400 leading-tight truncate">
                 {sexLabel[p.sexo] || p.sexo}
                 {edad ? ` · ${edad} años` : ''}
-                {p.tipo_sangre && (
-                  <span className="text-red-500 font-semibold"> · {p.tipo_sangre}</span>
-                )}
+                {p.tipo_sangre && <span className="text-red-500 font-semibold"> · {p.tipo_sangre}</span>}
               </p>
             </div>
           </div>
-
-          {/* Actions */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <button onClick={() => setShowEdit(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
               <Edit2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Editar</span>
+              <span className="hidden sm:inline">Editar paciente</span>
             </button>
             <button onClick={() => setOpenConsult('new')}
               className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 rounded-xl transition-colors shadow-sm">
@@ -262,8 +279,7 @@ export default function PatientDetailPage() {
         {/* ══ 4 STAT CARDS ═══════════════════════════════════════════ */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <StatCard
-            icon={Calendar}
-            iconBg="bg-primary-50" iconColor="text-primary-500"
+            icon={Calendar} iconBg="bg-primary-50" iconColor="text-primary-500"
             label="Última consulta"
             value={lastConsult ? formatFecha(lastConsult.fecha) : 'Sin registro'}
             sub={lastConsult?.motivo || undefined}
@@ -272,16 +288,13 @@ export default function PatientDetailPage() {
             icon={FaClipboardList}
             iconBg={activeProblems.length > 0 ? 'bg-red-100' : 'bg-slate-100'}
             iconColor={activeProblems.length > 0 ? 'text-red-500' : 'text-slate-400'}
-            label="Problemas activos"
-            value={activeProblems.length}
+            label="Problemas activos" value={activeProblems.length}
             sub={activeProblems[0]?.cie10_descripcion || 'Sin problemas'}
             alert={activeProblems.length > 0}
           />
           <StatCard
-            icon={FaPills}
-            iconBg="bg-purple-50" iconColor="text-purple-500"
-            label="Medicamentos activos"
-            value={activeMeds.length}
+            icon={FaPills} iconBg="bg-purple-50" iconColor="text-purple-500"
+            label="Medicamentos activos" value={activeMeds.length}
             sub={activeMeds[0]?.nombre || 'Sin medicamentos'}
           />
           <StatCard
@@ -297,7 +310,7 @@ export default function PatientDetailPage() {
         {/* ══ MAIN 2-COLUMN GRID ═════════════════════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
 
-          {/* ── LEFT: Consultas (3/5) ─────────────────────────────── */}
+          {/* ── LEFT: Consultas ───────────────────────────────────── */}
           <div className="lg:col-span-3">
             <CollapsibleCard
               icon={FaStethoscope} iconBg="bg-primary-50" iconColor="text-primary-500"
@@ -311,17 +324,13 @@ export default function PatientDetailPage() {
                     {consultations.map((c, i) => (
                       <button key={c.id} onClick={() => setOpenConsult(c)}
                         className="w-full flex items-stretch gap-3 text-left group">
-                        {/* Timeline line */}
-                        <div className="flex flex-col items-center gap-0 flex-shrink-0 pt-1">
+                        <div className="flex flex-col items-center flex-shrink-0 pt-1">
                           <div className={cn('w-3 h-3 rounded-full border-2 flex-shrink-0 mt-1',
-                            c.estado === 'terminada'
-                              ? 'bg-green-400 border-green-400'
-                              : 'bg-blue-400 border-blue-400')} />
+                            c.estado === 'terminada' ? 'bg-green-400 border-green-400' : 'bg-blue-400 border-blue-400')} />
                           {i < consultations.length - 1 && (
                             <div className="w-px flex-1 bg-slate-200 mt-1" style={{ minHeight: '24px' }} />
                           )}
                         </div>
-                        {/* Content */}
                         <div className="flex-1 min-w-0 pb-3">
                           <div className={cn(
                             'flex items-center justify-between gap-2 p-3 rounded-xl border transition-all',
@@ -346,9 +355,7 @@ export default function PatientDetailPage() {
                             </div>
                             <span className={cn(
                               'text-xs px-2.5 py-1 rounded-full font-semibold flex-shrink-0',
-                              c.estado === 'terminada'
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-blue-100 text-blue-700'
+                              c.estado === 'terminada' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
                             )}>
                               {c.estado === 'terminada' ? '✓ Terminada' : '● Activa'}
                             </span>
@@ -361,10 +368,10 @@ export default function PatientDetailPage() {
             </CollapsibleCard>
           </div>
 
-          {/* ── RIGHT: Estado actual (2/5) ───────────────────────── */}
+          {/* ── RIGHT: Estado actual ──────────────────────────────── */}
           <div className="lg:col-span-2 space-y-4">
 
-            {/* Problemas activos */}
+            {/* Problemas */}
             <Card>
               <SectionHeader
                 icon={FaClipboardList} iconBg="bg-red-50" iconColor="text-red-500"
@@ -373,11 +380,14 @@ export default function PatientDetailPage() {
               />
               <div className="p-4 space-y-3">
                 {showProbForm && (
-                  <ProblemForm patientId={p.id} onDone={() => { setShowProbForm(false); refresh() }} />
+                  <ProblemForm patientId={p.id}
+                    onCancel={() => setShowProbForm(false)}
+                    onSaved={() => { setShowProbForm(false); refreshProblems() }}
+                  />
                 )}
                 {problems.length === 0 && !showProbForm
                   ? <EmptyState icon={FaClipboardList} text="Sin problemas registrados" />
-                  : <ProblemsView problems={problems} onRefresh={refresh} />}
+                  : <ProblemsView problems={problems} onRefresh={refreshProblems} />}
               </div>
             </Card>
 
@@ -390,14 +400,20 @@ export default function PatientDetailPage() {
               />
               <div className="p-4 space-y-3">
                 {showMedForm && (
-                  <MedForm patientId={p.id} onDone={() => { setShowMedForm(false); fetchPatient(id) }} />
+                  <MedForm patientId={p.id}
+                    onCancel={() => setShowMedForm(false)}
+                    onSaved={() => { setShowMedForm(false); fetchPatient(id) }}
+                  />
                 )}
                 {meds.length === 0 && !showMedForm
                   ? <EmptyState icon={FaPills} text="Sin medicamentos" />
-                  : <MedsView meds={meds} onToggle={async (med) => {
-                      await updateMedication(med.id, { activo: !med.activo })
-                      fetchPatient(id)
-                    }} />}
+                  : <MedsView meds={meds}
+                      onToggle={async (med) => { await updateMedication(med.id, { activo: !med.activo }); fetchPatient(id) }}
+                      onDelete={async (med) => {
+                        await supabase.from('medications').delete().eq('id', med.id)
+                        fetchPatient(id)
+                      }}
+                    />}
               </div>
             </Card>
 
@@ -410,11 +426,19 @@ export default function PatientDetailPage() {
               />
               <div className="p-4 space-y-3">
                 {showVaxForm && (
-                  <VaxForm patientId={p.id} onDone={() => { setShowVaxForm(false); fetchPatient(id) }} />
+                  <VaxForm patientId={p.id}
+                    onCancel={() => setShowVaxForm(false)}
+                    onSaved={() => { setShowVaxForm(false); fetchPatient(id) }}
+                  />
                 )}
                 {vaccines.length === 0 && !showVaxForm
                   ? <EmptyState icon={MdVaccines} text="Sin vacunas registradas" />
-                  : <VaccinesView vaccines={vaccines} />}
+                  : <VaccinesView vaccines={vaccines}
+                      onDelete={async (v) => {
+                        await supabase.from('vaccines').delete().eq('id', v.id)
+                        fetchPatient(id)
+                      }}
+                    />}
               </div>
             </Card>
 
@@ -429,7 +453,10 @@ export default function PatientDetailPage() {
           defaultOpen={!!latest}
         >
           {showVitalsForm && (
-            <VitalsForm patientId={p.id} onDone={() => { setShowVitalsForm(false); fetchPatient(id) }} />
+            <VitalsForm patientId={p.id}
+              onCancel={() => setShowVitalsForm(false)}
+              onSaved={() => { setShowVitalsForm(false); fetchPatient(id) }}
+            />
           )}
           {latest ? (
             <div className="space-y-4">
@@ -437,8 +464,6 @@ export default function PatientDetailPage() {
                 <Clock className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-xs text-slate-400">Última medición: {formatFechaHora(latest.fecha)}</span>
               </div>
-
-              {/* Vital chips grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
                 {latest.peso_kg    && <VitalChip icon={FaWeightScale} label="Peso" value={latest.peso_kg} unit="kg" />}
                 {latest.talla_cm   && <VitalChip icon={GiBodyHeight} label="Talla" value={latest.talla_cm} unit="cm" />}
@@ -457,8 +482,6 @@ export default function PatientDetailPage() {
                 {latest.porc_grasa && <VitalChip icon={FaWeightScale} label="% Grasa" value={latest.porc_grasa} unit="%" />}
                 {latest.masa_muscular && <VitalChip icon={FaWeightScale} label="M. Muscular" value={latest.masa_muscular} unit="kg" />}
               </div>
-
-              {/* Mini chart if multiple readings */}
               {chartData.length >= 2 && (
                 <div className="mt-2">
                   <p className="text-xs text-slate-400 mb-2">Evolución presión sistólica / frec. cardíaca</p>
@@ -476,14 +499,9 @@ export default function PatientDetailPage() {
                       </defs>
                       <XAxis dataKey="fecha" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
                       <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
-                      <Tooltip
-                        contentStyle={{ fontSize: 11, borderRadius: 10, border: '1px solid #e2e8f0' }}
-                        labelStyle={{ fontWeight: 600 }}
-                      />
-                      <Area type="monotone" dataKey="pas" name="P. sistólica" stroke="#f43f5e" strokeWidth={2}
-                        fill="url(#gPas)" dot={false} activeDot={{ r: 4 }} />
-                      <Area type="monotone" dataKey="fc" name="Frec. cardíaca" stroke="#6366f1" strokeWidth={2}
-                        fill="url(#gFc)" dot={false} activeDot={{ r: 4 }} />
+                      <Tooltip contentStyle={{ fontSize: 11, borderRadius: 10, border: '1px solid #e2e8f0' }} labelStyle={{ fontWeight: 600 }} />
+                      <Area type="monotone" dataKey="pas" name="P. sistólica" stroke="#f43f5e" strokeWidth={2} fill="url(#gPas)" dot={false} activeDot={{ r: 4 }} />
+                      <Area type="monotone" dataKey="fc" name="Frec. cardíaca" stroke="#6366f1" strokeWidth={2} fill="url(#gFc)" dot={false} activeDot={{ r: 4 }} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -494,7 +512,7 @@ export default function PatientDetailPage() {
           )}
         </CollapsibleCard>
 
-        {/* ══ BOTTOM ROW: Antecedentes · Notas · Archivos ════════════ */}
+        {/* ══ BOTTOM ROW ═════════════════════════════════════════════ */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
           {/* Antecedentes */}
@@ -502,43 +520,46 @@ export default function PatientDetailPage() {
             icon={FaNotesMedical} iconBg="bg-teal-50" iconColor="text-teal-500"
             title="Antecedentes" defaultOpen={false}
           >
-            <BackgroundView background={p.clinical_background} patientId={p.id} onDone={() => fetchPatient(id)} />
+            <BackgroundView background={p.clinical_background} patientId={p.id} onSaved={() => fetchPatient(id)} />
           </CollapsibleCard>
 
           {/* Notas clínicas */}
           <CollapsibleCard
             icon={FaFileMedical} iconBg="bg-indigo-50" iconColor="text-indigo-500"
             title="Notas clínicas" badge={notes.length} defaultOpen={notes.length > 0}
+            action={<AddBtn onClick={() => setShowNoteForm(v => !v)} label="Nueva nota" />}
           >
-            {notes.length === 0
+            {showNoteForm && (
+              <NoteForm patientId={p.id}
+                onCancel={() => setShowNoteForm(false)}
+                onSaved={() => { setShowNoteForm(false); refreshNotes() }}
+              />
+            )}
+            {notes.length === 0 && !showNoteForm
               ? <EmptyState icon={FaFileMedical} text="Sin notas clínicas" />
               : <div className="space-y-2">
                   {notes.map(n => (
-                    <div key={n.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                      <p className="text-xs text-slate-400 mb-1">{formatFechaHora(n.created_at)}</p>
-                      <div className="text-sm text-slate-700 prose prose-sm max-w-none line-clamp-3"
+                    <div key={n.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 group">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-slate-400">{formatFechaHora(n.created_at)}</span>
+                        <DeleteBtn onDelete={async () => {
+                          await supabase.from('clinical_notes').delete().eq('id', n.id)
+                          refreshNotes()
+                        }} />
+                      </div>
+                      <div className="text-sm text-slate-700 prose prose-sm max-w-none line-clamp-4"
                         dangerouslySetInnerHTML={{ __html: n.contenido }} />
                     </div>
                   ))}
                 </div>}
           </CollapsibleCard>
 
-          {/* Archivos */}
+          {/* Archivos adjuntos */}
           <CollapsibleCard
             icon={FaPaperclip} iconBg="bg-slate-100" iconColor="text-slate-500"
             title="Archivos adjuntos" badge={files.length} defaultOpen={files.length > 0}
           >
-            {files.length === 0
-              ? <EmptyState icon={FaPaperclip} text="Sin archivos adjuntos" />
-              : <div className="grid grid-cols-2 gap-2">
-                  {files.map(f => (
-                    <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer"
-                      className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-primary-200 hover:bg-primary-50 transition-all group text-center">
-                      <FaPaperclip className="w-5 h-5 text-slate-400 group-hover:text-primary-500 mx-auto mb-1" />
-                      <p className="text-xs text-slate-600 truncate">{f.nombre}</p>
-                    </a>
-                  ))}
-                </div>}
+            <FileUploadSection patientId={p.id} files={files} onRefresh={refreshFiles} />
           </CollapsibleCard>
 
         </div>
@@ -547,6 +568,12 @@ export default function PatientDetailPage() {
         <CollapsibleCard
           icon={FaUserDoctor} iconBg="bg-slate-100" iconColor="text-slate-500"
           title="Datos del paciente" defaultOpen={false}
+          action={
+            <button onClick={() => setShowEdit(true)}
+              className="flex items-center gap-1 text-xs text-primary-600 font-semibold hover:underline">
+              <Edit2 className="w-3 h-3" /> Editar
+            </button>
+          }
         >
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {[
@@ -584,7 +611,7 @@ export default function PatientDetailPage() {
 }
 
 /* ─── VitalsForm ────────────────────────────────────────────────── */
-function VitalsForm({ patientId, onDone }) {
+function VitalsForm({ patientId, onCancel, onSaved }) {
   const { addVitalSigns } = usePatientsStore()
   const [saving, setSaving] = useState(false)
   const [f, setF] = useState({
@@ -603,29 +630,27 @@ function VitalsForm({ patientId, onDone }) {
     Object.entries(f).forEach(([k, v]) => { if (v !== '') payload[k] = parseFloat(v) || parseInt(v) })
     await addVitalSigns(payload)
     setSaving(false)
-    onDone()
+    onSaved()
   }
-
-  const fields = [
-    { k:'peso_kg', label:'Peso (kg)', ph:'70.5' },
-    { k:'talla_cm', label:'Talla (cm)', ph:'170' },
-    { k:'temperatura', label:'Temp. (°C)', ph:'36.5' },
-    { k:'frec_cardiaca', label:'FC (lpm)', ph:'72' },
-    { k:'frec_respiratoria', label:'FR (rpm)', ph:'16' },
-    { k:'presion_sistolica', label:'P. sistólica', ph:'120' },
-    { k:'presion_diastolica', label:'P. diastólica', ph:'80' },
-    { k:'saturacion_o2', label:'SpO₂ (%)', ph:'98' },
-    { k:'porc_grasa', label:'% Grasa', ph:'20' },
-    { k:'masa_muscular', label:'M. Muscular (kg)', ph:'35' },
-  ]
 
   return (
     <form onSubmit={handleSubmit} className="mb-4 p-4 bg-rose-50 rounded-xl border border-rose-100 space-y-3">
       <p className="text-sm font-semibold text-rose-700 flex items-center gap-2">
-        <FaHeartPulse className="w-4 h-4" /> Nueva medición de signos vitales
+        <FaHeartPulse className="w-4 h-4" /> Nueva medición
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {fields.map(({ k, label, ph }) => (
+        {[
+          { k:'peso_kg', label:'Peso (kg)', ph:'70.5' },
+          { k:'talla_cm', label:'Talla (cm)', ph:'170' },
+          { k:'temperatura', label:'Temp. (°C)', ph:'36.5' },
+          { k:'frec_cardiaca', label:'FC (lpm)', ph:'72' },
+          { k:'frec_respiratoria', label:'FR (rpm)', ph:'16' },
+          { k:'presion_sistolica', label:'P. sistólica', ph:'120' },
+          { k:'presion_diastolica', label:'P. diastólica', ph:'80' },
+          { k:'saturacion_o2', label:'SpO₂ (%)', ph:'98' },
+          { k:'porc_grasa', label:'% Grasa', ph:'20' },
+          { k:'masa_muscular', label:'M. Muscular (kg)', ph:'35' },
+        ].map(({ k, label, ph }) => (
           <div key={k}>
             <label className="text-xs text-slate-500 mb-1 block">{label}</label>
             <input type="number" step="0.1" className="input text-sm py-2" placeholder={ph}
@@ -643,9 +668,9 @@ function VitalsForm({ patientId, onDone }) {
         )}
       </div>
       <div className="flex gap-2">
-        <button type="button" onClick={onDone} className="btn-secondary text-sm py-2">Cancelar</button>
-        <button type="submit" disabled={saving} className="btn-primary text-sm py-2">
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Guardar
+        <button type="button" onClick={onCancel} className="btn-secondary text-sm py-2">Cancelar</button>
+        <button type="submit" disabled={saving} className="btn-primary text-sm py-2 flex items-center gap-1.5">
+          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Guardar
         </button>
       </div>
     </form>
@@ -653,7 +678,7 @@ function VitalsForm({ patientId, onDone }) {
 }
 
 /* ─── MedForm ───────────────────────────────────────────────────── */
-function MedForm({ patientId, onDone }) {
+function MedForm({ patientId, onCancel, onSaved }) {
   const { addMedication } = usePatientsStore()
   const [saving, setSaving] = useState(false)
   const [f, setF] = useState({ nombre:'', dosis:'', frecuencia:'', via:'', notas:'' })
@@ -664,7 +689,7 @@ function MedForm({ patientId, onDone }) {
     setSaving(true)
     await addMedication({ ...f, patient_id: patientId, activo: true })
     setSaving(false)
-    onDone()
+    onSaved()
   }
 
   return (
@@ -699,9 +724,9 @@ function MedForm({ patientId, onDone }) {
         </div>
       </div>
       <div className="flex gap-2">
-        <button type="button" onClick={onDone} className="btn-secondary text-sm py-2">Cancelar</button>
-        <button type="submit" disabled={saving} className="btn-primary text-sm py-2">
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Guardar
+        <button type="button" onClick={onCancel} className="btn-secondary text-sm py-2">Cancelar</button>
+        <button type="submit" disabled={saving} className="btn-primary text-sm py-2 flex items-center gap-1.5">
+          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Guardar
         </button>
       </div>
     </form>
@@ -709,7 +734,7 @@ function MedForm({ patientId, onDone }) {
 }
 
 /* ─── VaxForm ───────────────────────────────────────────────────── */
-function VaxForm({ patientId, onDone }) {
+function VaxForm({ patientId, onCancel, onSaved }) {
   const { addVaccine } = usePatientsStore()
   const [saving, setSaving] = useState(false)
   const [f, setF] = useState({ nombre:'', fecha_aplicacion:'', lote:'', laboratorio:'', dosis_numero:'', proxima_dosis:'' })
@@ -720,7 +745,7 @@ function VaxForm({ patientId, onDone }) {
     setSaving(true)
     await addVaccine({ ...f, patient_id: patientId })
     setSaving(false)
-    onDone()
+    onSaved()
   }
 
   return (
@@ -756,9 +781,9 @@ function VaxForm({ patientId, onDone }) {
         </div>
       </div>
       <div className="flex gap-2">
-        <button type="button" onClick={onDone} className="btn-secondary text-sm py-2">Cancelar</button>
-        <button type="submit" disabled={saving} className="btn-primary text-sm py-2">
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Guardar
+        <button type="button" onClick={onCancel} className="btn-secondary text-sm py-2">Cancelar</button>
+        <button type="submit" disabled={saving} className="btn-primary text-sm py-2 flex items-center gap-1.5">
+          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Guardar
         </button>
       </div>
     </form>
@@ -766,7 +791,7 @@ function VaxForm({ patientId, onDone }) {
 }
 
 /* ─── ProblemForm ───────────────────────────────────────────────── */
-function ProblemForm({ patientId, onDone }) {
+function ProblemForm({ patientId, onCancel, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [f, setF] = useState({ cie10_codigo:'', cie10_descripcion:'', estado:'activo', notas:'' })
   const set = (k, v) => setF(prev => ({ ...prev, [k]: v }))
@@ -776,13 +801,13 @@ function ProblemForm({ patientId, onDone }) {
     setSaving(true)
     await supabase.from('patient_problems').insert([{ ...f, patient_id: patientId }])
     setSaving(false)
-    onDone()
+    onSaved()
   }
 
   return (
     <form onSubmit={handleSubmit} className="mb-4 p-4 bg-red-50 rounded-xl border border-red-100 space-y-3">
       <p className="text-sm font-semibold text-red-600 flex items-center gap-2">
-        <FaClipboardList className="w-4 h-4" /> Nuevo problema / diagnóstico
+        <FaClipboardList className="w-4 h-4" /> Nuevo problema
       </p>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -810,12 +835,130 @@ function ProblemForm({ patientId, onDone }) {
         </div>
       </div>
       <div className="flex gap-2">
-        <button type="button" onClick={onDone} className="btn-secondary text-sm py-2">Cancelar</button>
-        <button type="submit" disabled={saving} className="btn-primary text-sm py-2">
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Guardar
+        <button type="button" onClick={onCancel} className="btn-secondary text-sm py-2">Cancelar</button>
+        <button type="submit" disabled={saving} className="btn-primary text-sm py-2 flex items-center gap-1.5">
+          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Guardar
         </button>
       </div>
     </form>
+  )
+}
+
+/* ─── NoteForm ──────────────────────────────────────────────────── */
+function NoteForm({ patientId, onCancel, onSaved }) {
+  const [saving, setSaving] = useState(false)
+  const [texto, setTexto] = useState('')
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!texto.trim()) return
+    setSaving(true)
+    await supabase.from('clinical_notes').insert([{
+      patient_id: patientId,
+      contenido: texto.split('\n').map(l => `<p>${l || '<br>'}</p>`).join(''),
+      titulo: texto.slice(0, 60),
+    }])
+    setSaving(false)
+    onSaved()
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mb-4 p-4 bg-indigo-50 rounded-xl border border-indigo-100 space-y-3">
+      <p className="text-sm font-semibold text-indigo-700 flex items-center gap-2">
+        <FaFileMedical className="w-4 h-4" /> Nueva nota clínica
+      </p>
+      <textarea
+        rows={4}
+        className="input text-sm resize-none w-full"
+        placeholder="Escribe la nota clínica..."
+        value={texto}
+        onChange={e => setTexto(e.target.value)}
+        required
+      />
+      <div className="flex gap-2">
+        <button type="button" onClick={onCancel} className="btn-secondary text-sm py-2">Cancelar</button>
+        <button type="submit" disabled={saving} className="btn-primary text-sm py-2 flex items-center gap-1.5">
+          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Guardar nota
+        </button>
+      </div>
+    </form>
+  )
+}
+
+/* ─── FileUploadSection ─────────────────────────────────────────── */
+function FileUploadSection({ patientId, files, onRefresh }) {
+  const fileRef = useRef(null)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setError('')
+    try {
+      const path = `${patientId}/${Date.now()}_${file.name}`
+      const { data: upload, error: uploadErr } = await supabase.storage
+        .from('patient-files').upload(path, file)
+      if (uploadErr) throw uploadErr
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('patient-files').getPublicUrl(upload.path)
+
+      await supabase.from('patient_files').insert([{
+        patient_id: patientId,
+        nombre: file.name,
+        url: publicUrl,
+        tipo: file.type,
+        tamanio: file.size,
+      }])
+      onRefresh()
+    } catch (err) {
+      setError('Error al subir el archivo. Verifica los permisos de Storage.')
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  const handleDelete = async (f) => {
+    const path = new URL(f.url).pathname.split('/patient-files/')[1]
+    await supabase.storage.from('patient-files').remove([path])
+    await supabase.from('patient_files').delete().eq('id', f.id)
+    onRefresh()
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Upload button */}
+      <div>
+        <input ref={fileRef} type="file" className="hidden" onChange={handleUpload} />
+        <button type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-200 hover:border-primary-300 hover:bg-primary-50/30 rounded-xl text-sm text-slate-500 hover:text-primary-600 transition-all">
+          {uploading
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> Subiendo...</>
+            : <><Upload className="w-4 h-4" /> Subir archivo</>}
+        </button>
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+      </div>
+
+      {files.length === 0
+        ? <EmptyState icon={FaPaperclip} text="Sin archivos adjuntos" />
+        : <div className="space-y-2">
+            {files.map(f => (
+              <div key={f.id} className="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl border border-slate-100 group">
+                <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                <a href={f.url} target="_blank" rel="noopener noreferrer"
+                  className="flex-1 min-w-0 text-sm text-slate-700 hover:text-primary-600 truncate">
+                  {f.nombre}
+                </a>
+                <DeleteBtn onDelete={() => handleDelete(f)} />
+              </div>
+            ))}
+          </div>}
+    </div>
   )
 }
 
@@ -828,6 +971,10 @@ function ProblemsView({ problems, onRefresh }) {
   }
   const changeStatus = async (id, estado) => {
     await supabase.from('patient_problems').update({ estado }).eq('id', id)
+    onRefresh()
+  }
+  const deleteProblem = async (id) => {
+    await supabase.from('patient_problems').delete().eq('id', id)
     onRefresh()
   }
   return (
@@ -848,6 +995,7 @@ function ProblemsView({ problems, onRefresh }) {
               <option value="inactivo">Inactivo</option>
               <option value="resuelto">Resuelto</option>
             </select>
+            <DeleteBtn onDelete={() => deleteProblem(prob.id)} />
           </div>
         )
       })}
@@ -856,7 +1004,7 @@ function ProblemsView({ problems, onRefresh }) {
 }
 
 /* ─── MedsView ──────────────────────────────────────────────────── */
-function MedsView({ meds, onToggle }) {
+function MedsView({ meds, onToggle, onDelete }) {
   const active = meds.filter(m => m.activo)
   const inactive = meds.filter(m => !m.activo)
   return (
@@ -869,9 +1017,10 @@ function MedsView({ meds, onToggle }) {
             <p className="text-xs text-slate-500">{[m.dosis, m.frecuencia, m.via].filter(Boolean).join(' · ')}</p>
           </div>
           <button onClick={() => onToggle(m)} title="Desactivar"
-            className="flex-shrink-0 text-slate-300 hover:text-red-400 transition-colors mt-0.5">
+            className="text-slate-300 hover:text-amber-400 transition-colors mt-0.5 flex-shrink-0">
             <XCircle className="w-4 h-4" />
           </button>
+          <DeleteBtn onDelete={() => onDelete(m)} />
         </div>
       ))}
       {inactive.length > 0 && (
@@ -880,14 +1029,15 @@ function MedsView({ meds, onToggle }) {
             <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
             {inactive.length} inactivo(s)
           </summary>
-          <div className="mt-2 space-y-1 opacity-50">
+          <div className="mt-2 space-y-1 opacity-60">
             {inactive.map(m => (
               <div key={m.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50">
                 <FaPills className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-xs text-slate-500 line-through flex-1">{m.nombre}</span>
-                <button onClick={() => onToggle(m)} className="text-slate-300 hover:text-green-500 transition-colors">
+                <button onClick={() => onToggle(m)} title="Reactivar" className="text-slate-300 hover:text-green-500 transition-colors">
                   <CheckCircle className="w-3.5 h-3.5" />
                 </button>
+                <DeleteBtn onDelete={() => onDelete(m)} />
               </div>
             ))}
           </div>
@@ -898,7 +1048,7 @@ function MedsView({ meds, onToggle }) {
 }
 
 /* ─── VaccinesView ──────────────────────────────────────────────── */
-function VaccinesView({ vaccines }) {
+function VaccinesView({ vaccines, onDelete }) {
   const hoy = new Date()
   return (
     <div className="space-y-2">
@@ -923,6 +1073,7 @@ function VaccinesView({ vaccines }) {
                 {pending ? '⚠ ' : ''}{formatFecha(v.proxima_dosis)}
               </span>
             )}
+            <DeleteBtn onDelete={() => onDelete(v)} />
           </div>
         )
       })}
@@ -931,7 +1082,7 @@ function VaccinesView({ vaccines }) {
 }
 
 /* ─── BackgroundView ────────────────────────────────────────────── */
-function BackgroundView({ background, patientId, onDone }) {
+function BackgroundView({ background, patientId, onSaved }) {
   const FIELDS = [
     { k: 'alergias',               label: 'Alergias' },
     { k: 'antec_patologicos',      label: 'Patológicos' },
@@ -952,7 +1103,12 @@ function BackgroundView({ background, patientId, onDone }) {
     await upsertBackground(patientId, form)
     setSaving(false)
     setEditing(false)
-    onDone()
+    onSaved()
+  }
+
+  const handleCancel = () => {
+    setForm(background || {})
+    setEditing(false)
   }
 
   return (
@@ -960,14 +1116,14 @@ function BackgroundView({ background, patientId, onDone }) {
       <div className="flex justify-end">
         {editing
           ? <div className="flex gap-2">
-              <button onClick={() => setEditing(false)} className="btn-secondary text-xs py-1.5">Cancelar</button>
-              <button onClick={handleSave} disabled={saving} className="btn-primary text-xs py-1.5">
-                {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Guardar
+              <button onClick={handleCancel} className="btn-secondary text-xs py-1.5">Cancelar</button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary text-xs py-1.5 flex items-center gap-1">
+                {saving && <Loader2 className="w-3 h-3 animate-spin" />} Guardar
               </button>
             </div>
           : <button onClick={() => setEditing(true)}
               className="flex items-center gap-1 text-xs text-primary-600 font-semibold hover:underline">
-              <Edit2 className="w-3 h-3" /> Editar
+              <Edit2 className="w-3 h-3" /> Editar antecedentes
             </button>}
       </div>
       <div className="space-y-3">
