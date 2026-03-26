@@ -1,6 +1,5 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useAuthStore } from '../store/authStore'
 import { usePatientsStore } from '../store/patientsStore'
 import {
   Plus, Loader2, Calendar, X, AlertTriangle
@@ -33,30 +32,26 @@ function detectsConflict(existing, newStart, newEnd) {
 
 /* ══════════════════════════════════════════════ */
 export default function AppointmentsPage() {
-  const { doctor }                   = useAuthStore()
   const { patients, fetchPatients }  = usePatientsStore()
   const [appointments, setAppointments] = useState([])
   const [loading, setLoading]        = useState(true)
   const [showModal, setShowModal]    = useState(false)
   const [filter, setFilter]          = useState('hoy')
 
-  // Only fetch patients once if the list is empty
   useEffect(() => {
     if (patients.length === 0) fetchPatients()
   }, [])
 
-  const fetchData = useCallback(async () => {
-    if (!doctor?.id) return
+  // fetchData relies on RLS for doctor filtering — no dependency on doctor state
+  const fetchData = async () => {
     setLoading(true)
-
     let query = supabase
       .from('appointments')
       .select('*, patients(nombre, apellidos, telefono, tipo_sangre)')
-      .eq('doctor_id', doctor.id)
       .order('fecha_hora')
 
-    const now  = new Date()
-    const hoy  = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const now = new Date()
+    const hoy = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
     if (filter === 'hoy') {
       const fin = new Date(hoy.getTime() + 86399999)
@@ -77,9 +72,9 @@ export default function AppointmentsPage() {
     const { data } = await query
     setAppointments(data || [])
     setLoading(false)
-  }, [doctor?.id, filter])
+  }
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { fetchData() }, [filter])
 
   const updateEstado = async (id, estado) => {
     await supabase.from('appointments').update({ estado }).eq('id', id)
@@ -207,7 +202,6 @@ export default function AppointmentsPage() {
       {showModal && (
         <NewAppointmentModal
           patients={patients}
-          doctorId={doctor?.id}
           existingAppointments={appointments}
           onClose={() => setShowModal(false)}
           onSaved={fetchData}
@@ -247,14 +241,26 @@ export function NewAppointmentModal({ patients, doctorId, existingAppointments =
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!doctorId) { setError('No se encontró el perfil del médico. Recarga la página.'); return }
     if (conflict) { setError('Hay un conflicto de horario con otra cita. Cambia la fecha u hora.'); return }
 
     setSaving(true)
     setError('')
+
+    // Resolve doctor_id — use prop if available, otherwise query DB directly
+    let did = doctorId
+    if (!did) {
+      const { data: doc } = await supabase.from('doctors').select('id').single()
+      did = doc?.id
+    }
+    if (!did) {
+      setError('No se encontró el perfil del médico. Recarga la página.')
+      setSaving(false)
+      return
+    }
+
     const { error: dbErr } = await supabase.from('appointments').insert([{
       patient_id:   form.patient_id,
-      doctor_id:    doctorId,
+      doctor_id:    did,
       fecha_hora:   form.fecha_hora,
       duracion_min: parseInt(form.duracion_min),
       tipo:         form.tipo,
