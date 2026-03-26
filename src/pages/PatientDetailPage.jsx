@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePatientsStore } from '../store/patientsStore'
-import { ArrowLeft, Loader2, User, Activity, Pill, Syringe, FileText, Calendar, Salad, Edit2 } from 'lucide-react'
+import { ArrowLeft, Loader2, Activity, Pill, Syringe, FileText, Calendar, Salad, Edit2, AlertCircle, Paperclip, BookOpen } from 'lucide-react'
 import { calcEdad, formatFecha, cn } from '../utils'
 import VitalSignsTab from '../components/patients/VitalSignsTab'
 import BackgroundTab from '../components/patients/BackgroundTab'
@@ -10,13 +10,19 @@ import VaccinesTab from '../components/patients/VaccinesTab'
 import ConsultationsTab from '../components/patients/ConsultationsTab'
 import DietTab from '../components/patients/DietTab'
 import EditPatientModal from '../components/patients/EditPatientModal'
+import ProblemListTab from '../components/patients/ProblemListTab'
+import FilesTab from '../components/patients/FilesTab'
+import ClinicalNotesTab from '../components/patients/ClinicalNotesTab'
 
 const TABS = [
   { id: 'signos',        label: 'Signos vitales',   icon: Activity },
   { id: 'antecedentes',  label: 'Antecedentes',      icon: FileText },
+  { id: 'problemas',     label: 'Problemas',         icon: AlertCircle },
+  { id: 'notas',         label: 'Notas clínicas',    icon: BookOpen },
   { id: 'medicamentos',  label: 'Medicamentos',      icon: Pill },
   { id: 'vacunas',       label: 'Vacunas',           icon: Syringe },
   { id: 'consultas',     label: 'Consultas',         icon: Calendar },
+  { id: 'archivos',      label: 'Archivos',          icon: Paperclip },
   { id: 'nutricion',     label: 'Nutrición',         icon: Salad },
 ]
 
@@ -129,9 +135,12 @@ export default function PatientDetailPage() {
       <div>
         {activeTab === 'signos'       && <VitalSignsTab patient={p} />}
         {activeTab === 'antecedentes' && <BackgroundTab patient={p} />}
+        {activeTab === 'problemas'    && <ProblemListTab patient={p} />}
+        {activeTab === 'notas'        && <ClinicalNotesTab patient={p} />}
         {activeTab === 'medicamentos' && <MedicationsTab patient={p} />}
         {activeTab === 'vacunas'      && <VaccinesTab patient={p} />}
         {activeTab === 'consultas'    && <ConsultationsTab patient={p} />}
+        {activeTab === 'archivos'     && <FilesTab patient={p} />}
         {activeTab === 'nutricion'    && <DietTab patient={p} />}
       </div>
 
