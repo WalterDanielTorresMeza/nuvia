@@ -10,7 +10,9 @@ import PatientsPage from './pages/PatientsPage'
 import PatientDetailPage from './pages/PatientDetailPage'
 import AppointmentsPage from './pages/AppointmentsPage'
 import ConsultationsVideoPage from './pages/ConsultationsVideoPage'
-import { BillingPage, ReportsPage, ConfigPage } from './pages/PlaceholderPages'
+import BillingPage from './pages/BillingPage'
+import ReportsPage from './pages/ReportsPage'
+import ConfigPage  from './pages/ConfigPage'
 
 export default function App() {
   const { init } = useAuthStore()
