@@ -4,8 +4,12 @@ import { useAuthStore } from '../store/authStore'
 import { supabase } from '../lib/supabase'
 import {
   Users, Calendar, ClipboardList, Video,
-  ArrowRight, Plus, Clock, TrendingUp,
+  ArrowRight, Plus, Clock, TrendingUp, DollarSign,
 } from 'lucide-react'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
 
 function greeting() {
   const h = new Date().getHours()
@@ -14,7 +18,11 @@ function greeting() {
   return 'Buenas noches'
 }
 
-function StatCard({ label, value, icon: Icon, color, sub, onClick }) {
+const fmt = (n) => n != null
+  ? new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(n)
+  : '$0'
+
+function StatCard({ label, value, icon: Icon, color, sub, onClick, valueColor }) {
   return (
     <div
       onClick={onClick}
@@ -22,7 +30,7 @@ function StatCard({ label, value, icon: Icon, color, sub, onClick }) {
     >
       <div>
         <p className="text-sm text-slate-500">{label}</p>
-        <p className="text-3xl font-bold text-slate-800 mt-1">{value}</p>
+        <p className={`text-3xl font-bold mt-1 ${valueColor || 'text-slate-800'}`}>{value}</p>
         {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
       </div>
       <div className={`w-12 h-12 ${color} rounded-xl flex items-center justify-center flex-shrink-0`}>
@@ -32,7 +40,7 @@ function StatCard({ label, value, icon: Icon, color, sub, onClick }) {
   )
 }
 
-const TIPO_LABEL  = { presencial: 'Presencial', videoconsulta: 'Videoconsulta', urgencia: 'Urgencia' }
+const TIPO_LABEL   = { presencial: 'Presencial', videoconsulta: 'Videoconsulta', urgencia: 'Urgencia' }
 const ESTADO_STYLE = {
   programada: 'bg-blue-100 text-blue-700',
   confirmada: 'bg-green-100 text-green-700',
@@ -42,11 +50,12 @@ const ESTADO_STYLE = {
 export default function DashboardPage() {
   const navigate   = useNavigate()
   const { doctor } = useAuthStore()
-  const [stats, setStats]         = useState({ pacientes: 0, citasHoy: 0, consultasMes: 0, videoHoy: 0 })
-  const [citasHoy, setCitasHoy]   = useState([])
+  const [stats, setStats]           = useState({ pacientes: 0, citasHoy: 0, consultasMes: 0, videoHoy: 0, ingresosMes: 0 })
+  const [citasHoy, setCitasHoy]     = useState([])
   const [recentPats, setRecentPats] = useState([])
   const [proximasCitas, setProximasCitas] = useState([])
-  const [loading, setLoading]     = useState(true)
+  const [chartData, setChartData]   = useState([])
+  const [loading, setLoading]       = useState(true)
 
   useEffect(() => { fetchAll() }, [])
 
@@ -56,7 +65,8 @@ export default function DashboardPage() {
       const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
       const endDay   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
       const startMon = new Date(now.getFullYear(), now.getMonth(), 1)
-      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 8) // next 7 days
+      const next7    = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 8)
+      const start6m  = new Date(now.getFullYear(), now.getMonth() - 5, 1)
 
       const [
         { count: pacientes },
@@ -64,6 +74,9 @@ export default function DashboardPage() {
         { data: apptHoy },
         { data: latestPats },
         { data: proximas },
+        { data: invoicesMes },
+        { data: appts6m },
+        { data: consults6m },
       ] = await Promise.all([
         supabase.from('patients').select('*', { count: 'exact', head: true }).eq('activo', true),
         supabase.from('consultations').select('*', { count: 'exact', head: true }).gte('fecha', startMon.toISOString()),
@@ -81,19 +94,48 @@ export default function DashboardPage() {
         supabase.from('appointments')
           .select('*, patients(nombre, apellidos)')
           .gt('fecha_hora', endDay.toISOString())
-          .lte('fecha_hora', tomorrow.toISOString())
+          .lte('fecha_hora', next7.toISOString())
           .in('estado', ['programada', 'confirmada'])
           .order('fecha_hora')
-          .limit(5),
+          .limit(6),
+        supabase.from('invoices')
+          .select('total')
+          .gte('fecha', startMon.toISOString())
+          .eq('estado', 'timbrada'),
+        supabase.from('appointments')
+          .select('fecha_hora')
+          .gte('fecha_hora', start6m.toISOString()),
+        supabase.from('consultations')
+          .select('fecha')
+          .gte('fecha', start6m.toISOString()),
       ])
 
       const citasHoyList = apptHoy || []
       const videoHoy     = citasHoyList.filter(a => a.tipo === 'videoconsulta').length
+      const ingresosMes  = (invoicesMes || []).reduce((s, i) => s + (i.total || 0), 0)
 
-      setStats({ pacientes: pacientes || 0, citasHoy: citasHoyList.length, consultasMes: consMes || 0, videoHoy })
+      setStats({ pacientes: pacientes || 0, citasHoy: citasHoyList.length, consultasMes: consMes || 0, videoHoy, ingresosMes })
       setCitasHoy(citasHoyList)
       setRecentPats(latestPats || [])
       setProximasCitas(proximas || [])
+
+      // Bar chart: últimos 6 meses
+      const mesMap = {}
+      for (let i = 5; i >= 0; i--) {
+        const d   = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const key = `${d.getFullYear()}-${d.getMonth()}`
+        mesMap[key] = { mes: d.toLocaleDateString('es-MX', { month: 'short', year: '2-digit' }), consultas: 0, citas: 0 }
+      }
+      ;(consults6m || []).forEach(c => {
+        const d = new Date(c.fecha); const key = `${d.getFullYear()}-${d.getMonth()}`
+        if (mesMap[key]) mesMap[key].consultas++
+      })
+      ;(appts6m || []).forEach(a => {
+        const d = new Date(a.fecha_hora); const key = `${d.getFullYear()}-${d.getMonth()}`
+        if (mesMap[key]) mesMap[key].citas++
+      })
+      setChartData(Object.values(mesMap))
+
     } finally {
       setLoading(false)
     }
@@ -129,18 +171,48 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total pacientes"     value={loading ? '—' : stats.pacientes}    icon={Users}         color="bg-blue-50 text-blue-600"     onClick={() => navigate('/pacientes')} />
-        <StatCard label="Citas hoy"           value={loading ? '—' : stats.citasHoy}     icon={Calendar}      color="bg-emerald-50 text-emerald-600" onClick={() => navigate('/agenda')} />
-        <StatCard label="Consultas este mes"  value={loading ? '—' : stats.consultasMes} icon={ClipboardList} color="bg-violet-50 text-violet-600" />
-        <StatCard label="Videoconsultas hoy"  value={loading ? '—' : stats.videoHoy}     icon={Video}         color="bg-indigo-50 text-indigo-600"   onClick={() => navigate('/consultas')} />
+      {/* Stats — 5 cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard label="Pacientes"          value={loading ? '—' : stats.pacientes}    icon={Users}         color="bg-blue-50 text-blue-600"     onClick={() => navigate('/pacientes')} />
+        <StatCard label="Citas hoy"          value={loading ? '—' : stats.citasHoy}     icon={Calendar}      color="bg-emerald-50 text-emerald-600" onClick={() => navigate('/agenda')} />
+        <StatCard label="Consultas este mes" value={loading ? '—' : stats.consultasMes} icon={ClipboardList} color="bg-violet-50 text-violet-600" />
+        <StatCard label="Videoconsultas hoy" value={loading ? '—' : stats.videoHoy}     icon={Video}         color="bg-indigo-50 text-indigo-600"   onClick={() => navigate('/consultas')} />
+        <StatCard label="Ingresos del mes"   value={loading ? '—' : fmt(stats.ingresosMes)} icon={DollarSign} color="bg-green-50 text-green-600" valueColor="text-green-700" onClick={() => navigate('/facturacion')} />
       </div>
 
-      {/* Bottom row */}
+      {/* Activity chart */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-slate-400" />
+            <h2 className="font-semibold text-slate-700">Actividad últimos 6 meses</h2>
+          </div>
+          <div className="flex items-center gap-4 text-xs text-slate-400">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-sky-400 inline-block" />Consultas</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-violet-400 inline-block" />Citas</span>
+          </div>
+        </div>
+        {loading ? (
+          <div className="h-52 flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData} barGap={4}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#94a3b8' }} />
+              <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} allowDecimals={false} />
+              <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13 }} />
+              <Bar dataKey="consultas" name="Consultas" fill="#0ea5e9" radius={[4,4,0,0]} />
+              <Bar dataKey="citas"     name="Citas"     fill="#8b5cf6" radius={[4,4,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Citas hoy + Próximos 7 días */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* Citas de hoy */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -165,7 +237,7 @@ export default function DashboardPage() {
               </button>
             </div>
           ) : (
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {citasHoy.map(cita => (
                 <div key={cita.id}
                   onClick={() => navigate(`/pacientes/${cita.patient_id}`)}
@@ -191,7 +263,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Próximas citas (next 7 days) */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -213,16 +284,16 @@ export default function DashboardPage() {
               <p className="text-sm">Sin citas próximas</p>
             </div>
           ) : (
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {proximasCitas.map(cita => (
                 <div key={cita.id}
                   onClick={() => navigate(`/pacientes/${cita.patient_id}`)}
                   className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group">
-                  <div className="w-12 text-center flex-shrink-0">
+                  <div className="w-11 text-center flex-shrink-0 bg-slate-50 rounded-xl py-1">
                     <p className="text-lg font-bold text-slate-800 leading-none">
                       {new Date(cita.fecha_hora).getDate()}
                     </p>
-                    <p className="text-xs text-slate-400 capitalize">
+                    <p className="text-[10px] text-slate-400 capitalize">
                       {new Date(cita.fecha_hora).toLocaleDateString('es-MX', { month: 'short' })}
                     </p>
                   </div>
@@ -256,15 +327,12 @@ export default function DashboardPage() {
           </button>
         </div>
         {loading ? (
-          <div className="h-20 flex items-center justify-center">
+          <div className="h-16 flex items-center justify-center">
             <div className="w-6 h-6 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : recentPats.length === 0 ? (
-          <div className="h-20 flex flex-col items-center justify-center text-slate-400">
+          <div className="h-16 flex items-center justify-center text-slate-400">
             <p className="text-sm">No hay pacientes registrados</p>
-            <button onClick={() => navigate('/pacientes')} className="mt-2 text-xs text-primary-600 hover:underline">
-              + Agregar paciente
-            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
