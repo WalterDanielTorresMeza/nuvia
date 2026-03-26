@@ -23,10 +23,11 @@ export function clasificarIMC(imc) {
 export function calcEdad(fechaNacimiento) {
   if (!fechaNacimiento) return null
   const hoy = new Date()
-  const nac = new Date(fechaNacimiento)
-  let edad = hoy.getFullYear() - nac.getFullYear()
-  const m = hoy.getMonth() - nac.getMonth()
-  if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad--
+  // Parsear partes manualmente para evitar desfase de zona horaria (UTC vs local)
+  const [year, month, day] = String(fechaNacimiento).split('-').map(Number)
+  let edad = hoy.getFullYear() - year
+  const m = (hoy.getMonth() + 1) - month
+  if (m < 0 || (m === 0 && hoy.getDate() < day)) edad--
   return edad
 }
 
