@@ -19,18 +19,32 @@ function getRoomUrl(id) {
 function useCountdown(fechaHora) {
   const [label, setLabel]   = useState('')
   const [urgent, setUrgent] = useState(false)
+  const [isPast, setIsPast] = useState(false)
 
   useEffect(() => {
     const calc = () => {
       const diff = new Date(fechaHora) - new Date()
-      if (diff < -3600000) { setLabel('Finalizada'); setUrgent(false); return }
+      if (diff < -3600000) {
+        // Past — show elapsed time, NOT "Finalizada"
+        const elapsed = Math.abs(diff)
+        const mins  = Math.floor(elapsed / 60000)
+        const hrs   = Math.floor(mins / 60)
+        const days  = Math.floor(hrs / 24)
+        const text  = days >= 1
+          ? `Hace ${days} día${days > 1 ? 's' : ''}`
+          : hrs >= 1
+          ? `Hace ${hrs}h ${mins % 60 > 0 ? (mins % 60) + 'min' : ''}`
+          : `Hace ${mins} min`
+        setLabel(text); setUrgent(false); setIsPast(true); return
+      }
+      setIsPast(false)
       if (diff < 0)        { setLabel('En curso ●'); setUrgent(true);  return }
       const mins = Math.floor(diff / 60000)
-      if (mins < 1)  { setLabel('Ahora mismo');          setUrgent(true);  return }
-      if (mins < 60) { setLabel(`En ${mins} min`);        setUrgent(mins <= 15); return }
+      if (mins < 1)  { setLabel('Ahora mismo');      setUrgent(true);  return }
+      if (mins < 60) { setLabel(`En ${mins} min`);   setUrgent(mins <= 15); return }
       const hrs = Math.floor(mins / 60)
       const rm  = mins % 60
-      if (hrs < 24) { setLabel(`En ${hrs}h ${rm > 0 ? rm + 'min' : ''}`); setUrgent(false); return }
+      if (hrs < 24) { setLabel(`En ${hrs}h${rm > 0 ? ' ' + rm + 'min' : ''}`); setUrgent(false); return }
       const days = Math.floor(hrs / 24)
       setLabel(`En ${days} día${days > 1 ? 's' : ''}`)
       setUrgent(false)
@@ -40,7 +54,7 @@ function useCountdown(fechaHora) {
     return () => clearInterval(t)
   }, [fechaHora])
 
-  return { label, urgent }
+  return { label, urgent, isPast }
 }
 
 /* ── Blood type colors ── */
@@ -52,9 +66,9 @@ const BLOOD_COLORS = {
 }
 
 /* ── Single appointment card ── */
-function VideoCard({ apt, onStart, onCopy, copied }) {
-  const navigate         = useNavigate()
-  const { label, urgent } = useCountdown(apt.fecha_hora)
+function VideoCard({ apt, onStart, onCopy, copied, onComplete }) {
+  const navigate              = useNavigate()
+  const { label, urgent, isPast } = useCountdown(apt.fecha_hora)
   const hora = new Date(apt.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
   const fecha = new Date(apt.fecha_hora).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
   const p    = apt.patients || {}
@@ -63,12 +77,16 @@ function VideoCard({ apt, onStart, onCopy, copied }) {
   return (
     <div className={cn(
       'bg-white rounded-2xl border transition-all overflow-hidden',
-      urgent
-        ? 'border-blue-300 shadow-md shadow-blue-100 ring-1 ring-blue-200'
-        : 'border-slate-200 hover:shadow-sm'
+      isPast  ? 'border-amber-200 bg-amber-50/30'
+      : urgent ? 'border-blue-300 shadow-md shadow-blue-100 ring-1 ring-blue-200'
+               : 'border-slate-200 hover:shadow-sm'
     )}>
       {/* Top accent strip */}
-      <div className={cn('h-1 w-full', urgent ? 'bg-gradient-to-r from-blue-500 to-indigo-500' : 'bg-gradient-to-r from-slate-200 to-slate-100')} />
+      <div className={cn('h-1 w-full',
+        isPast  ? 'bg-gradient-to-r from-amber-400 to-orange-400'
+        : urgent ? 'bg-gradient-to-r from-blue-500 to-indigo-500'
+                 : 'bg-gradient-to-r from-slate-200 to-slate-100'
+      )} />
 
       <div className="p-5">
         <div className="flex items-start gap-4">
@@ -99,9 +117,9 @@ function VideoCard({ apt, onStart, onCopy, copied }) {
               {/* Countdown badge */}
               <span className={cn(
                 'text-xs font-semibold px-2.5 py-1 rounded-xl flex-shrink-0',
-                urgent
-                  ? 'bg-blue-600 text-white animate-pulse'
-                  : 'bg-slate-100 text-slate-600'
+                isPast  ? 'bg-amber-100 text-amber-700'
+                : urgent ? 'bg-blue-600 text-white animate-pulse'
+                         : 'bg-slate-100 text-slate-600'
               )}>
                 {label}
               </span>
@@ -124,18 +142,27 @@ function VideoCard({ apt, onStart, onCopy, copied }) {
 
         {/* Actions */}
         <div className="flex gap-2 mt-4">
-          <button
-            onClick={() => onStart(apt)}
-            className={cn(
-              'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all',
-              urgent
-                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
-                : 'bg-primary-600 hover:bg-primary-700 text-white'
-            )}
-          >
-            <Video className="w-4 h-4" />
-            {urgent ? 'Unirse ahora' : 'Iniciar consulta'}
-          </button>
+          {isPast ? (
+            <button
+              onClick={() => onComplete(apt.id)}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-all"
+            >
+              <Check className="w-4 h-4" />
+              Marcar completada
+            </button>
+          ) : (
+            <button
+              onClick={() => onStart(apt)}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all',
+                urgent ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+                       : 'bg-primary-600 hover:bg-primary-700 text-white'
+              )}
+            >
+              <Video className="w-4 h-4" />
+              {urgent ? 'Unirse ahora' : 'Iniciar consulta'}
+            </button>
+          )}
 
           <button
             onClick={() => onCopy(apt)}
@@ -330,6 +357,11 @@ export default function ConsultationsVideoPage() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
+  const completeApt = async (id) => {
+    await supabase.from('appointments').update({ estado: 'completada' }).eq('id', id)
+    setAppointments(prev => prev.filter(a => a.id !== id))
+  }
+
   // Group appointments — every appointment must land in exactly one bucket
   const now     = new Date()
   const ago1h   = new Date(now.getTime() - 3600000)
@@ -362,7 +394,7 @@ export default function ConsultationsVideoPage() {
     return d >= new Date(now.getFullYear(), now.getMonth(), now.getDate()) && d <= weekEnd
   }).length
 
-  const Section = ({ title, items, color = 'text-slate-500' }) => items.length === 0 ? null : (
+  const Section = ({ title, items, color = 'text-slate-500', onComplete }) => items.length === 0 ? null : (
     <div>
       <h2 className={cn('text-xs font-bold uppercase tracking-wider mb-3', color)}>{title}</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -373,6 +405,7 @@ export default function ConsultationsVideoPage() {
             onStart={setActiveCall}
             onCopy={copyLink}
             copied={copiedId === apt.id}
+            onComplete={onComplete}
           />
         ))}
       </div>
@@ -465,7 +498,7 @@ export default function ConsultationsVideoPage() {
             <Section title="📅 Más tarde hoy"               items={todayRest} color="text-slate-600" />
             <Section title="📆 Esta semana"                 items={thisWeek}  color="text-slate-500" />
             <Section title="🗓 Más adelante"                items={later}     color="text-slate-400" />
-            <Section title="⏳ Pendientes de cerrar"        items={pending}   color="text-amber-600" />
+            <Section title="⏳ Pasadas sin cerrar"          items={pending}   color="text-amber-600" onComplete={completeApt} />
           </div>
         )}
       </div>
