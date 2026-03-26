@@ -1,4 +1,4 @@
-import { Receipt, Video, FileText, Settings, Construction } from 'lucide-react'
+import { Receipt, FileText, Settings, Construction } from 'lucide-react'
 
 function ComingSoon({ icon: Icon, title, description, fase }) {
   return (
@@ -27,15 +27,6 @@ export function BillingPage() {
     title="Facturación"
     description="Módulo de facturación CFDI con integración al SAT vía Facturama. Genera facturas electrónicas, cancelaciones y descarga XML/PDF."
     fase="Fase 3"
-  />
-}
-
-export function ConsultationsVideoPage() {
-  return <ComingSoon
-    icon={Video}
-    title="Consultas por videollamada"
-    description="Videoconsultas en tiempo real integradas con Daily.co. Incluye sala de espera virtual, notas durante la consulta y grabación."
-    fase="Fase 2"
   />
 }
 
