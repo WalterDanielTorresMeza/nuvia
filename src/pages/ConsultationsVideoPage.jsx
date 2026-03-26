@@ -161,7 +161,6 @@ function VideoCard({ apt, onStart, onCopy, copied }) {
 
 /* ── Video call modal (embedded Jitsi + patient sidebar) ── */
 function VideoCallModal({ apt, onClose }) {
-  const navigate       = useNavigate()
   const [sidebar, setSidebar] = useState(true)
   const p              = apt.patients || {}
   const edad           = calcEdad(p.fecha_nacimiento)
@@ -287,11 +286,11 @@ function VideoCallModal({ apt, onClose }) {
             {/* Link to full profile */}
             <div className="p-4">
               <button
-                onClick={() => { onClose(); navigate(`/pacientes/${apt.patient_id}`) }}
+                onClick={() => window.open(`/pacientes/${apt.patient_id}`, '_blank')}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-sm font-semibold transition-colors"
               >
                 Ver expediente completo
-                <ChevronRight className="w-4 h-4" />
+                <ExternalLink className="w-4 h-4" />
               </button>
             </div>
           </div>
