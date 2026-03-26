@@ -83,7 +83,7 @@ function MedRow({ med, onChange, onDelete }) {
 /* ══════════════════════════════════════════════ */
 export default function ConsultationModal({ patient, consultation, onClose, onSaved }) {
   const { doctor } = useAuthStore()
-  const { fetchPatient } = usePatientsStore()
+  usePatientsStore()
   const [saving, setSaving] = useState(false)
   const [finishing, setFinishing] = useState(false)
   const [consultId, setConsultId] = useState(consultation?.id || null)
@@ -124,8 +124,16 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const editorPlan    = makeEditor('plan_tratamiento', 'Plan de tratamiento a seguir...', '80px')
 
+  // Resolve doctor ID — from auth store or fallback to DB query
+  const resolveDoctorId = async () => {
+    if (doctor?.id) return doctor.id
+    const { data } = await supabase.from('doctors').select('id').single()
+    return data?.id || null
+  }
+
   const saveData = async (estado = form.estado) => {
-    const payload = { ...form, estado, patient_id: patient.id, doctor_id: doctor?.id }
+    const doctorId = await resolveDoctorId()
+    const payload = { ...form, estado, patient_id: patient.id, doctor_id: doctorId }
     if (consultId) {
       const { error } = await supabase.from('consultations').update(payload).eq('id', consultId)
       if (error) return error.message
@@ -137,18 +145,32 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
     return null
   }
 
+  // When proxima_cita is set, create/update appointment in Agenda
+  const syncProximaCita = async () => {
+    if (!form.proxima_cita) return
+    const doctorId = await resolveDoctorId()
+    if (!doctorId) return
+    // Build datetime: date at 09:00 local
+    const fechaHora = new Date(`${form.proxima_cita}T09:00:00`).toISOString()
+    await supabase.from('appointments').insert([{
+      patient_id:   patient.id,
+      doctor_id:    doctorId,
+      fecha_hora:   fechaHora,
+      duracion_min: 30,
+      tipo:         'presencial',
+      estado:       'programada',
+      motivo:       form.motivo ? `Seguimiento: ${form.motivo}` : 'Próxima cita',
+    }])
+  }
+
   const handleSave = async () => {
     setSaving(true)
     setSaveError('')
     const err = await saveData()
     setSaving(false)
-    if (err) {
-      setSaveError(err)
-      return
-    }
+    if (err) { setSaveError(err); return }
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
-    fetchPatient(patient.id)
     onSaved?.()
   }
 
@@ -156,9 +178,11 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
     setFinishing(true)
     setSaveError('')
     const err = await saveData('terminada')
+    if (err) { setSaveError(err); setFinishing(false); return }
+    // Create appointment for next visit if date is set
+    await syncProximaCita()
     setFinishing(false)
-    if (err) { setSaveError(err); return }
-    fetchPatient(patient.id)
+    onSaved?.()
     onClose()
   }
 

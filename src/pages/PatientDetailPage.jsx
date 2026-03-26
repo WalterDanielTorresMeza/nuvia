@@ -174,7 +174,8 @@ export default function PatientDetailPage() {
 
   useEffect(() => { loadExtras() }, [id])
 
-  if (loading) return (
+  // Only block on loading if we have no data for this patient yet
+  if (loading && (!currentPatient || currentPatient.id !== id)) return (
     <div className="flex items-center justify-center py-32">
       <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
     </div>

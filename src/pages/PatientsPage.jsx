@@ -258,7 +258,7 @@ export default function PatientsPage() {
       )}
 
       {/* ── Content ── */}
-      {loading ? (
+      {loading && patients.length === 0 ? (
         <div className="flex items-center justify-center py-24">
           <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
         </div>

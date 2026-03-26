@@ -8,7 +8,8 @@ export const usePatientsStore = create((set, get) => ({
   error: null,
 
   fetchPatients: async () => {
-    set({ loading: true, error: null })
+    // Show loader only on first load; subsequent calls refresh silently
+    if (get().patients.length === 0) set({ loading: true, error: null })
     const { data, error } = await supabase
       .from('patients')
       .select('*')
@@ -20,7 +21,9 @@ export const usePatientsStore = create((set, get) => ({
   },
 
   fetchPatient: async (id) => {
-    set({ loading: true })
+    // Show loader only if we don't already have this patient loaded
+    const current = get().currentPatient
+    if (!current || current.id !== id) set({ loading: true })
     const { data, error } = await supabase
       .from('patients')
       .select(`
