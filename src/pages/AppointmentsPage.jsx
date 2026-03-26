@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { usePatientsStore } from '../store/patientsStore'
 import { useAuthStore } from '../store/authStore'
+import { useAppointmentsStore } from '../store/appointmentsStore'
 import {
-  Plus, Loader2, Calendar, X, AlertTriangle
+  Plus, Loader2, Calendar, X, AlertTriangle, ChevronRight
 } from 'lucide-react'
 import { FaStethoscope, FaVideo, FaTriangleExclamation } from 'react-icons/fa6'
 import { cn } from '../utils'
@@ -24,6 +26,15 @@ const TIPO_ICON = {
   urgencia:      <FaTriangleExclamation className="w-3.5 h-3.5" />,
 }
 
+const FILTERS = [
+  { val: 'hoy',       label: 'Hoy'         },
+  { val: 'semana',    label: 'Esta semana'  },
+  { val: 'mes',       label: 'Este mes'     },
+  { val: 'proximas',  label: 'Próximas'     },
+  { val: 'pendientes',label: 'Pendientes'   },
+  { val: 'todas',     label: 'Todas'        },
+]
+
 /* ── Detects if two appointments overlap ── */
 function detectsConflict(existing, newStart, newEnd) {
   const aptStart = new Date(existing.fecha_hora)
@@ -33,59 +44,24 @@ function detectsConflict(existing, newStart, newEnd) {
 
 /* ══════════════════════════════════════════════ */
 export default function AppointmentsPage() {
-  const { patients, fetchPatients }  = usePatientsStore()
-  const { doctor } = useAuthStore()
-  const [appointments, setAppointments] = useState([])
-  const [loading, setLoading]        = useState(true)
-  const [showModal, setShowModal]    = useState(false)
-  const [filter, setFilter]          = useState('todas')
+  const navigate = useNavigate()
+  const { patients, fetchPatients }               = usePatientsStore()
+  const { doctor }                                = useAuthStore()
+  const { appointments, loading, fetchAppointments, updateEstado } = useAppointmentsStore()
+  const [showModal, setShowModal] = useState(false)
+  const [filter, setFilter]       = useState('proximas')
 
   useEffect(() => {
     if (patients.length === 0) fetchPatients()
   }, [])
 
-  // fetchData relies on RLS for doctor filtering — no dependency on doctor state
-  const fetchData = async () => {
-    setLoading(true)
-    let query = supabase
-      .from('appointments')
-      .select('*, patients(nombre, apellidos, telefono, tipo_sangre)')
-      .order('fecha_hora')
-
-    const now = new Date()
-    const hoy = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-
-    if (filter === 'hoy') {
-      const fin = new Date(hoy.getTime() + 86399999)
-      query = query.gte('fecha_hora', hoy.toISOString()).lte('fecha_hora', fin.toISOString())
-    } else if (filter === 'semana') {
-      const lunes = new Date(hoy)
-      lunes.setDate(hoy.getDate() - ((hoy.getDay() + 6) % 7))
-      const domingo = new Date(lunes)
-      domingo.setDate(lunes.getDate() + 6)
-      domingo.setHours(23, 59, 59, 999)
-      query = query.gte('fecha_hora', lunes.toISOString()).lte('fecha_hora', domingo.toISOString())
-    } else if (filter === 'mes') {
-      const inicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
-      const fin    = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0, 23, 59, 59, 999)
-      query = query.gte('fecha_hora', inicio.toISOString()).lte('fecha_hora', fin.toISOString())
-    }
-
-    const { data } = await query
-    setAppointments(data || [])
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchData() }, [filter])
-
-  const updateEstado = async (id, estado) => {
-    await supabase.from('appointments').update({ estado }).eq('id', id)
-    fetchData()
-  }
+  useEffect(() => { fetchAppointments(filter) }, [filter])
 
   // Group by date for display
   const grouped = appointments.reduce((acc, apt) => {
-    const key = new Date(apt.fecha_hora).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
+    const key = new Date(apt.fecha_hora).toLocaleDateString('es-MX', {
+      weekday: 'long', day: 'numeric', month: 'long',
+    })
     if (!acc[key]) acc[key] = []
     acc[key].push(apt)
     return acc
@@ -99,7 +75,9 @@ export default function AppointmentsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Agenda</h1>
           <p className="text-slate-400 text-sm mt-0.5">
-            {loading ? 'Cargando...' : `${appointments.length} cita${appointments.length !== 1 ? 's' : ''}`}
+            {loading
+              ? 'Actualizando...'
+              : `${appointments.length} cita${appointments.length !== 1 ? 's' : ''}`}
           </p>
         </div>
         <button onClick={() => setShowModal(true)}
@@ -110,7 +88,7 @@ export default function AppointmentsPage() {
 
       {/* Filter tabs */}
       <div className="flex gap-2 flex-wrap">
-        {[['hoy','Hoy'],['semana','Esta semana'],['mes','Este mes'],['todas','Todas']].map(([val, label]) => (
+        {FILTERS.map(({ val, label }) => (
           <button key={val} onClick={() => setFilter(val)}
             className={cn(
               'px-4 py-2 text-sm rounded-xl font-medium transition-colors',
@@ -124,7 +102,7 @@ export default function AppointmentsPage() {
       </div>
 
       {/* Content */}
-      {loading ? (
+      {loading && appointments.length === 0 ? (
         <div className="flex justify-center py-24">
           <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
         </div>
@@ -142,16 +120,18 @@ export default function AppointmentsPage() {
         <div className="space-y-6">
           {Object.entries(grouped).map(([date, apts]) => (
             <div key={date}>
-              <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-3 capitalize">{date}</h2>
+              <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-3 capitalize">
+                {date}
+              </h2>
               <div className="space-y-2">
                 {apts.map(apt => {
-                  const st = ESTADO_STYLE[apt.estado] || ESTADO_STYLE.programada
-                  const hora = new Date(apt.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+                  const st     = ESTADO_STYLE[apt.estado] || ESTADO_STYLE.programada
+                  const hora   = new Date(apt.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
                   const horaFin = new Date(new Date(apt.fecha_hora).getTime() + apt.duracion_min * 60000)
                     .toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
                   return (
                     <div key={apt.id}
-                      className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-4 hover:shadow-sm transition-shadow">
+                      className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-4 hover:shadow-sm hover:border-primary-200 transition-all group">
 
                       {/* Time block */}
                       <div className="flex-shrink-0 text-center w-16">
@@ -162,10 +142,13 @@ export default function AppointmentsPage() {
 
                       <div className="w-px h-12 bg-slate-100 flex-shrink-0" />
 
-                      {/* Patient + info */}
-                      <div className="flex-1 min-w-0">
+                      {/* Patient + info — clickable area */}
+                      <div
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => navigate(`/pacientes/${apt.patient_id}`)}
+                      >
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className="font-semibold text-slate-800 text-sm">
+                          <span className="font-semibold text-slate-800 text-sm group-hover:text-primary-700 transition-colors">
                             {apt.patients?.nombre} {apt.patients?.apellidos}
                           </span>
                           <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-medium', st.cls)}>
@@ -184,10 +167,20 @@ export default function AppointmentsPage() {
                         )}
                       </div>
 
+                      {/* Ver perfil shortcut */}
+                      <button
+                        onClick={() => navigate(`/pacientes/${apt.patient_id}`)}
+                        className="flex-shrink-0 p-1.5 text-slate-300 hover:text-primary-500 hover:bg-primary-50 rounded-lg transition-colors"
+                        title="Ver expediente del paciente"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+
                       {/* Estado selector */}
                       <select
                         value={apt.estado}
                         onChange={e => updateEstado(apt.id, e.target.value)}
+                        onClick={e => e.stopPropagation()}
                         className="text-xs border border-slate-200 rounded-xl px-2.5 py-1.5 bg-white text-slate-600 flex-shrink-0 focus:outline-none focus:border-primary-300"
                       >
                         {ESTADOS.map(e => <option key={e} value={e}>{ESTADO_STYLE[e]?.label || e}</option>)}
@@ -207,10 +200,7 @@ export default function AppointmentsPage() {
           doctorId={doctor?.id}
           existingAppointments={appointments}
           onClose={() => setShowModal(false)}
-          onSaved={() => {
-            if (filter !== 'todas') setFilter('todas')
-            else fetchData()
-          }}
+          onSaved={() => fetchAppointments(filter)}
         />
       )}
     </div>
@@ -218,7 +208,10 @@ export default function AppointmentsPage() {
 }
 
 /* ══ NewAppointmentModal ═══════════════════════ */
-export function NewAppointmentModal({ patients, doctorId, existingAppointments = [], preselectedPatientId = null, onClose, onSaved }) {
+export function NewAppointmentModal({
+  patients, doctorId, existingAppointments = [],
+  preselectedPatientId = null, onClose, onSaved,
+}) {
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
   const [conflict, setConflict] = useState(null)
@@ -233,7 +226,6 @@ export function NewAppointmentModal({ patients, doctorId, existingAppointments =
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  // Check conflicts on date/duration change
   const checkConflict = (fechaHora, duracion) => {
     if (!fechaHora || !doctorId) { setConflict(null); return }
     const newStart = new Date(fechaHora)
@@ -254,7 +246,6 @@ export function NewAppointmentModal({ patients, doctorId, existingAppointments =
     setSaving(true)
     setError('')
 
-    // Resolve doctor_id — use prop if available, otherwise query DB directly
     let did = doctorId
     if (!did) {
       const { data: doc, error: docErr } = await supabase.from('doctors').select('id').single()
