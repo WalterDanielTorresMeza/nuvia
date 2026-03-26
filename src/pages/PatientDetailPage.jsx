@@ -1,60 +1,71 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePatientsStore } from '../store/patientsStore'
-import { useAuthStore } from '../store/authStore'
 import { supabase } from '../lib/supabase'
 import {
   ArrowLeft, Edit2, Plus, Loader2, ChevronDown, ChevronUp,
-  Activity, Calendar, AlertCircle, Pill, Syringe, FileText,
-  Paperclip, Salad, BookOpen, CheckCircle, Clock,
-  Thermometer, Heart, Wind, Droplets, Scale, Ruler,
-  XCircle, Trash2
+  CheckCircle, Clock, XCircle, Calendar
 } from 'lucide-react'
+import {
+  FaStethoscope, FaHeartPulse, FaWeightScale, FaLungs,
+  FaPills, FaFileMedical, FaNotesMedical,
+  FaUserDoctor, FaClipboardList, FaTemperatureHalf,
+  FaDroplet, FaTriangleExclamation, FaPaperclip
+} from 'react-icons/fa6'
+import { MdVaccines } from 'react-icons/md'
+import { GiBodyHeight } from 'react-icons/gi'
+import {
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer
+} from 'recharts'
 import { calcEdad, calcIMC, clasificarIMC, formatFecha, formatFechaHora, cn } from '../utils'
 import EditPatientModal from '../components/patients/EditPatientModal'
 import ConsultationModal from '../components/patients/ConsultationModal'
 
-/* ─── helpers ─────────────────────────────────────────────────── */
-function SectionCard({ icon: Icon, title, iconBg = 'bg-slate-100', iconColor = 'text-slate-500',
-  action, children, collapsible = false, defaultOpen = true, badge }) {
-  const [open, setOpen] = useState(defaultOpen)
+/* ─── mini helpers ──────────────────────────────────────────────── */
+function Card({ children, className = '' }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-      <div
-        onClick={() => collapsible && setOpen(o => !o)}
-        className={cn('flex items-center justify-between px-5 py-3.5 border-b border-slate-100',
-          collapsible && 'cursor-pointer hover:bg-slate-50 select-none')}
-      >
-        <div className="flex items-center gap-3">
-          <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0', iconBg)}>
-            <Icon className={cn('w-4 h-4', iconColor)} />
-          </div>
-          <span className="font-semibold text-slate-700 text-sm">{title}</span>
-          {badge != null && badge > 0 && (
-            <span className="text-xs bg-primary-100 text-primary-700 font-bold px-2 py-0.5 rounded-full">{badge}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {action && <div onClick={e => e.stopPropagation()}>{action}</div>}
-          {collapsible && (open
-            ? <ChevronUp className="w-4 h-4 text-slate-400" />
-            : <ChevronDown className="w-4 h-4 text-slate-400" />)}
-        </div>
-      </div>
-      {open && <div className="p-5">{children}</div>}
+    <div className={cn('bg-white rounded-2xl border border-slate-200', className)}>
+      {children}
     </div>
   )
 }
 
-function StatBox({ label, value, unit, icon: Icon, color = 'text-slate-800', bg = 'bg-slate-50' }) {
+function SectionHeader({ icon: Icon, iconBg, iconColor, title, badge, action, collapsible, open, onToggle }) {
   return (
-    <div className={cn('rounded-xl p-3 flex flex-col gap-1', bg)}>
-      <span className="text-xs text-slate-400">{label}</span>
-      <div className="flex items-end gap-1">
-        <span className={cn('text-xl font-bold leading-none', color)}>{value ?? '—'}</span>
-        {unit && <span className="text-xs text-slate-400 mb-0.5">{unit}</span>}
+    <div
+      onClick={() => collapsible && onToggle?.()}
+      className={cn(
+        'flex items-center justify-between px-5 py-3.5 border-b border-slate-100',
+        collapsible && 'cursor-pointer hover:bg-slate-50 select-none'
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0', iconBg)}>
+          <Icon className={cn('w-4 h-4', iconColor)} />
+        </div>
+        <span className="font-semibold text-slate-700 text-sm">{title}</span>
+        {badge != null && badge > 0 && (
+          <span className="text-xs bg-primary-100 text-primary-700 font-bold px-2 py-0.5 rounded-full">{badge}</span>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        {action && <div onClick={e => e.stopPropagation()}>{action}</div>}
+        {collapsible && (open
+          ? <ChevronUp className="w-4 h-4 text-slate-300" />
+          : <ChevronDown className="w-4 h-4 text-slate-300" />)}
       </div>
     </div>
+  )
+}
+
+function CollapsibleCard({ icon, iconBg, iconColor, title, badge, action, children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <Card>
+      <SectionHeader icon={icon} iconBg={iconBg} iconColor={iconColor} title={title}
+        badge={badge} action={action} collapsible open={open} onToggle={() => setOpen(o => !o)} />
+      {open && <div className="p-5">{children}</div>}
+    </Card>
   )
 }
 
@@ -67,27 +78,62 @@ function EmptyState({ icon: Icon, text }) {
   )
 }
 
-/* ─── main component ───────────────────────────────────────────── */
+function AddBtn({ onClick, label = 'Agregar' }) {
+  return (
+    <button onClick={onClick}
+      className="flex items-center gap-1 text-xs text-primary-600 font-semibold hover:underline">
+      <Plus className="w-3.5 h-3.5" /> {label}
+    </button>
+  )
+}
+
+/* ─── stat card ─────────────────────────────────────────────────── */
+function StatCard({ icon: Icon, iconBg, iconColor, label, value, sub, alert }) {
+  return (
+    <Card className={cn('p-4 flex items-center gap-4', alert && 'border-red-200 bg-red-50')}>
+      <div className={cn('w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0', iconBg)}>
+        <Icon className={cn('w-5 h-5', iconColor)} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-slate-400 leading-tight">{label}</p>
+        <p className={cn('text-lg font-bold leading-tight truncate', alert ? 'text-red-600' : 'text-slate-800')}>{value}</p>
+        {sub && <p className="text-xs text-slate-400 leading-tight truncate">{sub}</p>}
+      </div>
+    </Card>
+  )
+}
+
+/* ─── vital chip ────────────────────────────────────────────────── */
+function VitalChip({ icon: Icon, label, value, unit, alert }) {
+  return (
+    <div className={cn('flex flex-col gap-0.5 p-3 rounded-xl', alert ? 'bg-red-50' : 'bg-slate-50')}>
+      <div className="flex items-center gap-1.5">
+        <Icon className={cn('w-3.5 h-3.5', alert ? 'text-red-500' : 'text-slate-400')} />
+        <span className="text-xs text-slate-400">{label}</span>
+      </div>
+      <div className="flex items-end gap-1">
+        <span className={cn('text-base font-bold leading-none', alert ? 'text-red-600' : 'text-slate-800')}>{value}</span>
+        {unit && <span className="text-xs text-slate-400 mb-0.5">{unit}</span>}
+      </div>
+    </div>
+  )
+}
+
+/* ─── main component ────────────────────────────────────────────── */
 export default function PatientDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { fetchPatient, currentPatient, loading, addVitalSigns, addMedication,
-    updateMedication, addVaccine } = usePatientsStore()
-  const { doctor } = useAuthStore()
+  const { fetchPatient, currentPatient, loading, updateMedication } = usePatientsStore()
 
-  const [showEdit, setShowEdit]       = useState(false)
-  const [openConsult, setOpenConsult] = useState(null)
-
-  // Extra data (not in store)
-  const [problems, setProblems]   = useState([])
-  const [notes, setNotes]         = useState([])
-  const [files, setFiles]         = useState([])
-
-  // Section forms
-  const [showVitalsForm, setShowVitalsForm]   = useState(false)
-  const [showMedForm, setShowMedForm]         = useState(false)
-  const [showVaxForm, setShowVaxForm]         = useState(false)
-  const [showProbForm, setShowProbForm]       = useState(false)
+  const [showEdit, setShowEdit]           = useState(false)
+  const [openConsult, setOpenConsult]     = useState(null)
+  const [problems, setProblems]           = useState([])
+  const [notes, setNotes]                 = useState([])
+  const [files, setFiles]                 = useState([])
+  const [showVitalsForm, setShowVitalsForm] = useState(false)
+  const [showMedForm, setShowMedForm]     = useState(false)
+  const [showVaxForm, setShowVaxForm]     = useState(false)
+  const [showProbForm, setShowProbForm]   = useState(false)
 
   useEffect(() => { fetchPatient(id) }, [id])
 
@@ -122,11 +168,18 @@ export default function PatientDetailPage() {
   const vaccines = p.vaccines || []
   const consultations = [...(p.consultations || [])].sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
   const activeProblems = problems.filter(x => x.estado === 'activo')
-  const diets = p.diets || []
-  const activeDiet = diets.find(d => d.activa)
+  const lastConsult = consultations[0]
+  const alergias = p.clinical_background?.alergias
+
+  const imc = latest?.imc
+  const imcInfo = imc ? clasificarIMC(imc) : null
+
+  const imcColor = !imcInfo ? 'text-slate-800'
+    : imcInfo.label === 'Normal' ? 'text-emerald-600'
+    : imcInfo.label?.includes('Obesidad') ? 'text-red-600'
+    : 'text-amber-600'
 
   const sexLabel = { M: 'Masculino', F: 'Femenino', Otro: 'Otro' }
-  const imcInfo = latest?.imc ? clasificarIMC(latest.imc) : null
 
   const refresh = () => {
     fetchPatient(id)
@@ -134,200 +187,331 @@ export default function PatientDetailPage() {
       .then(({ data }) => setProblems(data || []))
   }
 
+  // Chart data: last 7 vitals reversed (oldest→newest)
+  const chartData = vitals.slice(0, 7).reverse().map(v => ({
+    fecha: formatFecha(v.fecha),
+    pas: v.presion_sistolica,
+    fc: v.frec_cardiaca,
+    peso: v.peso_kg,
+  }))
+
   return (
     <div className="min-h-screen bg-slate-50 -m-6">
 
-      {/* ── Top bar ── */}
-      <div className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
-        <div className="flex items-center gap-4 px-6 py-3">
+      {/* ══ STICKY HEADER ══════════════════════════════════════════ */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
+        <div className="flex items-center gap-4 px-6 py-3 max-w-screen-xl mx-auto">
           <button onClick={() => navigate('/pacientes')}
-            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Pacientes
+            className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0">
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Pacientes</span>
           </button>
-          <div className="w-px h-5 bg-slate-200" />
-          {/* Patient summary */}
+
+          <div className="w-px h-6 bg-slate-200 flex-shrink-0" />
+
+          {/* Avatar + name */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="w-9 h-9 bg-primary-100 rounded-xl flex items-center justify-center font-bold text-primary-700 text-sm flex-shrink-0">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary-400 to-primary-600 rounded-2xl flex items-center justify-center font-bold text-white text-sm flex-shrink-0 shadow-sm">
               {p.nombre?.[0]}{p.apellidos?.[0]}
             </div>
             <div className="min-w-0">
-              <h1 className="font-bold text-slate-800 text-sm leading-tight truncate">
+              <h1 className="font-bold text-slate-800 text-base leading-tight truncate">
                 {p.nombre} {p.apellidos}
               </h1>
-              <p className="text-xs text-slate-400 leading-tight">
+              <p className="text-xs text-slate-400 leading-tight truncate">
                 {sexLabel[p.sexo] || p.sexo}
                 {edad ? ` · ${edad} años` : ''}
-                {p.fecha_nacimiento ? ` · ${formatFecha(p.fecha_nacimiento)}` : ''}
-                {p.tipo_sangre ? ` · Tipo ${p.tipo_sangre}` : ''}
+                {p.tipo_sangre && (
+                  <span className="text-red-500 font-semibold"> · {p.tipo_sangre}</span>
+                )}
               </p>
             </div>
           </div>
+
+          {/* Actions */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <button onClick={() => setShowEdit(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
-              <Edit2 className="w-3.5 h-3.5" /> Editar
+              <Edit2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Editar</span>
             </button>
             <button onClick={() => setOpenConsult('new')}
               className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 rounded-xl transition-colors shadow-sm">
-              <Plus className="w-3.5 h-3.5" /> Nueva consulta
+              <FaStethoscope className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Nueva consulta</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── Main layout ── */}
-      <div className="flex gap-4 p-6 max-w-screen-xl mx-auto">
+      <div className="max-w-screen-xl mx-auto px-6 py-6 space-y-5">
 
-        {/* ── Left column ── */}
-        <div className="flex-1 min-w-0 space-y-4">
+        {/* ══ ALLERGY ALERT ══════════════════════════════════════════ */}
+        {alergias && (
+          <div className="flex items-center gap-3 px-5 py-3.5 bg-red-50 border border-red-200 rounded-2xl">
+            <div className="w-8 h-8 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <FaTriangleExclamation className="w-4 h-4 text-red-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-xs font-bold text-red-600 uppercase tracking-wide">Alergias conocidas</span>
+              <p className="text-sm text-red-700 leading-snug">{alergias}</p>
+            </div>
+          </div>
+        )}
 
-          {/* Signos vitales */}
-          <SectionCard icon={Activity} title="Signos vitales"
-            iconBg="bg-blue-50" iconColor="text-blue-500"
-            action={
-              <button onClick={() => setShowVitalsForm(v => !v)}
-                className="flex items-center gap-1 text-xs text-primary-600 font-semibold hover:underline">
-                <Plus className="w-3.5 h-3.5" /> Registrar
-              </button>
-            }
-          >
-            {showVitalsForm && <VitalsForm patientId={p.id} onDone={() => { setShowVitalsForm(false); fetchPatient(id) }} />}
-            {latest ? (
-              <div className="space-y-3">
-                <p className="text-xs text-slate-400 flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> Última medición: {formatFechaHora(latest.fecha)}
-                </p>
-                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
-                  {latest.peso_kg    && <StatBox label="Peso" value={latest.peso_kg} unit="kg" icon={Scale} />}
-                  {latest.talla_cm   && <StatBox label="Talla" value={latest.talla_cm} unit="cm" icon={Ruler} />}
-                  {latest.imc        && <StatBox label="IMC" value={latest.imc} icon={Scale}
-                    color={imcInfo?.color?.includes('red') ? 'text-red-600' : imcInfo?.color?.includes('amber') ? 'text-amber-600' : 'text-emerald-600'}
-                    bg={imcInfo?.color?.includes('red') ? 'bg-red-50' : imcInfo?.color?.includes('amber') ? 'bg-amber-50' : 'bg-emerald-50'} />}
-                  {latest.temperatura && <StatBox label="Temperatura" value={latest.temperatura} unit="°C" icon={Thermometer}
-                    color={latest.temperatura >= 38 ? 'text-red-600' : 'text-slate-800'}
-                    bg={latest.temperatura >= 38 ? 'bg-red-50' : 'bg-slate-50'} />}
-                  {latest.frec_cardiaca && <StatBox label="Frec. cardíaca" value={latest.frec_cardiaca} unit="lpm" icon={Heart} />}
-                  {latest.frec_respiratoria && <StatBox label="Frec. resp." value={latest.frec_respiratoria} unit="rpm" icon={Wind} />}
-                  {latest.presion_sistolica && <StatBox label="Presión" value={`${latest.presion_sistolica}/${latest.presion_diastolica}`} unit="mmHg" icon={Activity}
-                    color={latest.presion_sistolica >= 140 ? 'text-red-600' : 'text-slate-800'}
-                    bg={latest.presion_sistolica >= 140 ? 'bg-red-50' : 'bg-slate-50'} />}
-                  {latest.saturacion_o2 && <StatBox label="SpO₂" value={latest.saturacion_o2} unit="%" icon={Droplets}
-                    color={latest.saturacion_o2 < 95 ? 'text-red-600' : 'text-slate-800'}
-                    bg={latest.saturacion_o2 < 95 ? 'bg-red-50' : 'bg-slate-50'} />}
-                  {latest.porc_grasa && <StatBox label="% Grasa" value={latest.porc_grasa} unit="%" />}
-                  {latest.masa_muscular && <StatBox label="M. Muscular" value={latest.masa_muscular} unit="kg" />}
-                </div>
-              </div>
-            ) : !showVitalsForm && <EmptyState icon={Activity} text="Sin mediciones registradas" />}
-          </SectionCard>
-
-          {/* Consultas */}
-          <SectionCard icon={Calendar} title="Consultas" badge={consultations.length}
+        {/* ══ 4 STAT CARDS ═══════════════════════════════════════════ */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatCard
+            icon={Calendar}
             iconBg="bg-primary-50" iconColor="text-primary-500"
-            action={
-              <button onClick={() => setOpenConsult('new')}
-                className="flex items-center gap-1 text-xs text-primary-600 font-semibold hover:underline">
-                <Plus className="w-3.5 h-3.5" /> Nueva
-              </button>
-            }
-          >
-            {consultations.length === 0
-              ? <EmptyState icon={Calendar} text="Sin consultas registradas" />
-              : <div className="space-y-2">
-                  {consultations.slice(0, 5).map(c => (
-                    <button key={c.id} onClick={() => setOpenConsult(c)}
-                      className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors text-left group border border-transparent hover:border-slate-200">
-                      <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
-                        c.estado === 'terminada' ? 'bg-green-50' : 'bg-blue-50')}>
-                        {c.estado === 'terminada'
-                          ? <CheckCircle className="w-4 h-4 text-green-500" />
-                          : <Clock className="w-4 h-4 text-blue-500" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-700 truncate">{c.motivo || 'Consulta general'}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs text-slate-400">{formatFecha(c.fecha)}</span>
-                          {c.diagnostico_cie10 && <span className="text-xs font-mono bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{c.diagnostico_cie10}</span>}
-                        </div>
-                      </div>
-                      <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0',
-                        c.estado === 'terminada' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')}>
-                        {c.estado === 'terminada' ? 'Terminada' : 'Activa'}
-                      </span>
-                    </button>
-                  ))}
-                  {consultations.length > 5 && (
-                    <p className="text-xs text-slate-400 text-center pt-1">+{consultations.length - 5} consultas más</p>
-                  )}
-                </div>}
-          </SectionCard>
-
-          {/* Problemas */}
-          <SectionCard icon={AlertCircle} title="Lista de problemas" badge={activeProblems.length}
-            iconBg="bg-red-50" iconColor="text-red-500"
-            action={
-              <button onClick={() => setShowProbForm(v => !v)}
-                className="flex items-center gap-1 text-xs text-primary-600 font-semibold hover:underline">
-                <Plus className="w-3.5 h-3.5" /> Agregar
-              </button>
-            }
-          >
-            {showProbForm && <ProblemForm patientId={p.id} onDone={() => { setShowProbForm(false); refresh() }} />}
-            {problems.length === 0 && !showProbForm
-              ? <EmptyState icon={AlertCircle} text="Sin problemas registrados" />
-              : <ProblemsView problems={problems} onRefresh={refresh} />}
-          </SectionCard>
-
-          {/* Medicamentos */}
-          <SectionCard icon={Pill} title="Medicamentos" badge={activeMeds.length}
+            label="Última consulta"
+            value={lastConsult ? formatFecha(lastConsult.fecha) : 'Sin registro'}
+            sub={lastConsult?.motivo || undefined}
+          />
+          <StatCard
+            icon={FaClipboardList}
+            iconBg={activeProblems.length > 0 ? 'bg-red-100' : 'bg-slate-100'}
+            iconColor={activeProblems.length > 0 ? 'text-red-500' : 'text-slate-400'}
+            label="Problemas activos"
+            value={activeProblems.length}
+            sub={activeProblems[0]?.cie10_descripcion || 'Sin problemas'}
+            alert={activeProblems.length > 0}
+          />
+          <StatCard
+            icon={FaPills}
             iconBg="bg-purple-50" iconColor="text-purple-500"
-            action={
-              <button onClick={() => setShowMedForm(v => !v)}
-                className="flex items-center gap-1 text-xs text-primary-600 font-semibold hover:underline">
-                <Plus className="w-3.5 h-3.5" /> Agregar
-              </button>
-            }
-          >
-            {showMedForm && <MedForm patientId={p.id}
-              onDone={() => { setShowMedForm(false); fetchPatient(id) }} />}
-            {meds.length === 0 && !showMedForm
-              ? <EmptyState icon={Pill} text="Sin medicamentos registrados" />
-              : <MedsView meds={meds} onToggle={async (med) => {
-                  await updateMedication(med.id, { activo: !med.activo })
-                  fetchPatient(id)
-                }} />}
-          </SectionCard>
+            label="Medicamentos activos"
+            value={activeMeds.length}
+            sub={activeMeds[0]?.nombre || 'Sin medicamentos'}
+          />
+          <StatCard
+            icon={FaWeightScale}
+            iconBg={imcInfo && imcInfo.label !== 'Normal' ? 'bg-amber-50' : 'bg-emerald-50'}
+            iconColor={imcColor}
+            label="IMC / Peso"
+            value={imc ? `${imc} kg/m²` : latest?.peso_kg ? `${latest.peso_kg} kg` : '—'}
+            sub={imcInfo?.label || (latest?.peso_kg ? 'Sin IMC' : 'Sin registro')}
+          />
+        </div>
 
-          {/* Vacunas */}
-          <SectionCard icon={Syringe} title="Vacunas" badge={vaccines.length}
-            iconBg="bg-amber-50" iconColor="text-amber-500"
-            collapsible defaultOpen={vaccines.length > 0}
-            action={
-              <button onClick={() => setShowVaxForm(v => !v)}
-                className="flex items-center gap-1 text-xs text-primary-600 font-semibold hover:underline">
-                <Plus className="w-3.5 h-3.5" /> Registrar
-              </button>
-            }
-          >
-            {showVaxForm && <VaxForm patientId={p.id} onDone={() => { setShowVaxForm(false); fetchPatient(id) }} />}
-            {vaccines.length === 0 && !showVaxForm
-              ? <EmptyState icon={Syringe} text="Sin vacunas registradas" />
-              : <VaccinesView vaccines={vaccines} />}
-          </SectionCard>
+        {/* ══ MAIN 2-COLUMN GRID ═════════════════════════════════════ */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+
+          {/* ── LEFT: Consultas (3/5) ─────────────────────────────── */}
+          <div className="lg:col-span-3">
+            <CollapsibleCard
+              icon={FaStethoscope} iconBg="bg-primary-50" iconColor="text-primary-500"
+              title="Historial de consultas" badge={consultations.length}
+              action={<AddBtn onClick={() => setOpenConsult('new')} label="Nueva" />}
+            >
+              {consultations.length === 0
+                ? <EmptyState icon={FaStethoscope} text="Sin consultas registradas" />
+                : (
+                  <div className="space-y-2">
+                    {consultations.map((c, i) => (
+                      <button key={c.id} onClick={() => setOpenConsult(c)}
+                        className="w-full flex items-stretch gap-3 text-left group">
+                        {/* Timeline line */}
+                        <div className="flex flex-col items-center gap-0 flex-shrink-0 pt-1">
+                          <div className={cn('w-3 h-3 rounded-full border-2 flex-shrink-0 mt-1',
+                            c.estado === 'terminada'
+                              ? 'bg-green-400 border-green-400'
+                              : 'bg-blue-400 border-blue-400')} />
+                          {i < consultations.length - 1 && (
+                            <div className="w-px flex-1 bg-slate-200 mt-1" style={{ minHeight: '24px' }} />
+                          )}
+                        </div>
+                        {/* Content */}
+                        <div className="flex-1 min-w-0 pb-3">
+                          <div className={cn(
+                            'flex items-center justify-between gap-2 p-3 rounded-xl border transition-all',
+                            'group-hover:shadow-sm group-hover:border-primary-200 group-hover:bg-primary-50/30',
+                            c.estado === 'terminada' ? 'border-slate-200 bg-white' : 'border-blue-100 bg-blue-50/40'
+                          )}>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-slate-800 truncate">
+                                {c.motivo || 'Consulta general'}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                                <span className="text-xs text-slate-400">{formatFecha(c.fecha)}</span>
+                                {c.diagnostico_cie10 && (
+                                  <span className="text-xs font-mono bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
+                                    {c.diagnostico_cie10}
+                                  </span>
+                                )}
+                                {c.diagnostico && (
+                                  <span className="text-xs text-slate-400 truncate max-w-[200px]">{c.diagnostico}</span>
+                                )}
+                              </div>
+                            </div>
+                            <span className={cn(
+                              'text-xs px-2.5 py-1 rounded-full font-semibold flex-shrink-0',
+                              c.estado === 'terminada'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-blue-100 text-blue-700'
+                            )}>
+                              {c.estado === 'terminada' ? '✓ Terminada' : '● Activa'}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+            </CollapsibleCard>
+          </div>
+
+          {/* ── RIGHT: Estado actual (2/5) ───────────────────────── */}
+          <div className="lg:col-span-2 space-y-4">
+
+            {/* Problemas activos */}
+            <Card>
+              <SectionHeader
+                icon={FaClipboardList} iconBg="bg-red-50" iconColor="text-red-500"
+                title="Problemas" badge={activeProblems.length}
+                action={<AddBtn onClick={() => setShowProbForm(v => !v)} />}
+              />
+              <div className="p-4 space-y-3">
+                {showProbForm && (
+                  <ProblemForm patientId={p.id} onDone={() => { setShowProbForm(false); refresh() }} />
+                )}
+                {problems.length === 0 && !showProbForm
+                  ? <EmptyState icon={FaClipboardList} text="Sin problemas registrados" />
+                  : <ProblemsView problems={problems} onRefresh={refresh} />}
+              </div>
+            </Card>
+
+            {/* Medicamentos */}
+            <Card>
+              <SectionHeader
+                icon={FaPills} iconBg="bg-purple-50" iconColor="text-purple-500"
+                title="Medicamentos" badge={activeMeds.length}
+                action={<AddBtn onClick={() => setShowMedForm(v => !v)} />}
+              />
+              <div className="p-4 space-y-3">
+                {showMedForm && (
+                  <MedForm patientId={p.id} onDone={() => { setShowMedForm(false); fetchPatient(id) }} />
+                )}
+                {meds.length === 0 && !showMedForm
+                  ? <EmptyState icon={FaPills} text="Sin medicamentos" />
+                  : <MedsView meds={meds} onToggle={async (med) => {
+                      await updateMedication(med.id, { activo: !med.activo })
+                      fetchPatient(id)
+                    }} />}
+              </div>
+            </Card>
+
+            {/* Vacunas */}
+            <Card>
+              <SectionHeader
+                icon={MdVaccines} iconBg="bg-amber-50" iconColor="text-amber-500"
+                title="Vacunas" badge={vaccines.length}
+                action={<AddBtn onClick={() => setShowVaxForm(v => !v)} label="Registrar" />}
+              />
+              <div className="p-4 space-y-3">
+                {showVaxForm && (
+                  <VaxForm patientId={p.id} onDone={() => { setShowVaxForm(false); fetchPatient(id) }} />
+                )}
+                {vaccines.length === 0 && !showVaxForm
+                  ? <EmptyState icon={MdVaccines} text="Sin vacunas registradas" />
+                  : <VaccinesView vaccines={vaccines} />}
+              </div>
+            </Card>
+
+          </div>
+        </div>
+
+        {/* ══ SIGNOS VITALES ═════════════════════════════════════════ */}
+        <CollapsibleCard
+          icon={FaHeartPulse} iconBg="bg-rose-50" iconColor="text-rose-500"
+          title="Signos vitales"
+          action={<AddBtn onClick={() => setShowVitalsForm(v => !v)} label="Registrar" />}
+          defaultOpen={!!latest}
+        >
+          {showVitalsForm && (
+            <VitalsForm patientId={p.id} onDone={() => { setShowVitalsForm(false); fetchPatient(id) }} />
+          )}
+          {latest ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-xs text-slate-400">Última medición: {formatFechaHora(latest.fecha)}</span>
+              </div>
+
+              {/* Vital chips grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                {latest.peso_kg    && <VitalChip icon={FaWeightScale} label="Peso" value={latest.peso_kg} unit="kg" />}
+                {latest.talla_cm   && <VitalChip icon={GiBodyHeight} label="Talla" value={latest.talla_cm} unit="cm" />}
+                {latest.imc        && <VitalChip icon={FaWeightScale} label="IMC" value={latest.imc} unit="kg/m²"
+                  alert={latest.imc >= 30 || latest.imc < 18.5} />}
+                {latest.temperatura && <VitalChip icon={FaTemperatureHalf} label="Temperatura" value={latest.temperatura} unit="°C"
+                  alert={latest.temperatura >= 38} />}
+                {latest.frec_cardiaca && <VitalChip icon={FaHeartPulse} label="Frec. cardíaca" value={latest.frec_cardiaca} unit="lpm"
+                  alert={latest.frec_cardiaca > 100 || latest.frec_cardiaca < 60} />}
+                {latest.frec_respiratoria && <VitalChip icon={FaLungs} label="Frec. resp." value={latest.frec_respiratoria} unit="rpm"
+                  alert={latest.frec_respiratoria > 20 || latest.frec_respiratoria < 12} />}
+                {latest.presion_sistolica && <VitalChip icon={FaDroplet} label="Presión" value={`${latest.presion_sistolica}/${latest.presion_diastolica}`} unit="mmHg"
+                  alert={latest.presion_sistolica >= 140} />}
+                {latest.saturacion_o2 && <VitalChip icon={FaLungs} label="SpO₂" value={latest.saturacion_o2} unit="%"
+                  alert={latest.saturacion_o2 < 95} />}
+                {latest.porc_grasa && <VitalChip icon={FaWeightScale} label="% Grasa" value={latest.porc_grasa} unit="%" />}
+                {latest.masa_muscular && <VitalChip icon={FaWeightScale} label="M. Muscular" value={latest.masa_muscular} unit="kg" />}
+              </div>
+
+              {/* Mini chart if multiple readings */}
+              {chartData.length >= 2 && (
+                <div className="mt-2">
+                  <p className="text-xs text-slate-400 mb-2">Evolución presión sistólica / frec. cardíaca</p>
+                  <ResponsiveContainer width="100%" height={120}>
+                    <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                      <defs>
+                        <linearGradient id="gPas" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="gFc" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="fecha" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        contentStyle={{ fontSize: 11, borderRadius: 10, border: '1px solid #e2e8f0' }}
+                        labelStyle={{ fontWeight: 600 }}
+                      />
+                      <Area type="monotone" dataKey="pas" name="P. sistólica" stroke="#f43f5e" strokeWidth={2}
+                        fill="url(#gPas)" dot={false} activeDot={{ r: 4 }} />
+                      <Area type="monotone" dataKey="fc" name="Frec. cardíaca" stroke="#6366f1" strokeWidth={2}
+                        fill="url(#gFc)" dot={false} activeDot={{ r: 4 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          ) : !showVitalsForm && (
+            <EmptyState icon={FaHeartPulse} text="Sin mediciones registradas" />
+          )}
+        </CollapsibleCard>
+
+        {/* ══ BOTTOM ROW: Antecedentes · Notas · Archivos ════════════ */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
           {/* Antecedentes */}
-          <SectionCard icon={FileText} title="Antecedentes clínicos"
-            iconBg="bg-teal-50" iconColor="text-teal-500"
-            collapsible defaultOpen={false}>
+          <CollapsibleCard
+            icon={FaNotesMedical} iconBg="bg-teal-50" iconColor="text-teal-500"
+            title="Antecedentes" defaultOpen={false}
+          >
             <BackgroundView background={p.clinical_background} patientId={p.id} onDone={() => fetchPatient(id)} />
-          </SectionCard>
+          </CollapsibleCard>
 
           {/* Notas clínicas */}
-          <SectionCard icon={BookOpen} title="Notas clínicas" badge={notes.length}
-            iconBg="bg-indigo-50" iconColor="text-indigo-500"
-            collapsible defaultOpen={notes.length > 0}>
+          <CollapsibleCard
+            icon={FaFileMedical} iconBg="bg-indigo-50" iconColor="text-indigo-500"
+            title="Notas clínicas" badge={notes.length} defaultOpen={notes.length > 0}
+          >
             {notes.length === 0
-              ? <EmptyState icon={BookOpen} text="Sin notas clínicas" />
+              ? <EmptyState icon={FaFileMedical} text="Sin notas clínicas" />
               : <div className="space-y-2">
                   {notes.map(n => (
                     <div key={n.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
@@ -337,119 +521,55 @@ export default function PatientDetailPage() {
                     </div>
                   ))}
                 </div>}
-          </SectionCard>
+          </CollapsibleCard>
 
           {/* Archivos */}
-          <SectionCard icon={Paperclip} title="Archivos adjuntos" badge={files.length}
-            iconBg="bg-slate-100" iconColor="text-slate-500"
-            collapsible defaultOpen={files.length > 0}>
+          <CollapsibleCard
+            icon={FaPaperclip} iconBg="bg-slate-100" iconColor="text-slate-500"
+            title="Archivos adjuntos" badge={files.length} defaultOpen={files.length > 0}
+          >
             {files.length === 0
-              ? <EmptyState icon={Paperclip} text="Sin archivos adjuntos" />
-              : <div className="grid grid-cols-3 gap-2">
+              ? <EmptyState icon={FaPaperclip} text="Sin archivos adjuntos" />
+              : <div className="grid grid-cols-2 gap-2">
                   {files.map(f => (
                     <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer"
-                      className="p-2 bg-slate-50 rounded-xl border border-slate-100 hover:border-primary-200 hover:bg-primary-50 transition-all group text-center">
-                      <Paperclip className="w-5 h-5 text-slate-400 group-hover:text-primary-500 mx-auto mb-1" />
+                      className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-primary-200 hover:bg-primary-50 transition-all group text-center">
+                      <FaPaperclip className="w-5 h-5 text-slate-400 group-hover:text-primary-500 mx-auto mb-1" />
                       <p className="text-xs text-slate-600 truncate">{f.nombre}</p>
                     </a>
                   ))}
                 </div>}
-          </SectionCard>
-
-          {/* Nutrición */}
-          {(activeDiet || diets.length > 0) && (
-            <SectionCard icon={Salad} title="Nutrición"
-              iconBg="bg-green-50" iconColor="text-green-500"
-              collapsible defaultOpen={false}>
-              {activeDiet ? (
-                <div className="space-y-2 text-sm text-slate-700">
-                  {activeDiet.descripcion && <p>{activeDiet.descripcion}</p>}
-                  {activeDiet.calorias && <p className="text-slate-500">Calorías: <strong>{activeDiet.calorias} kcal</strong></p>}
-                  {activeDiet.restricciones && <p className="text-slate-500">Restricciones: {activeDiet.restricciones}</p>}
-                </div>
-              ) : <EmptyState icon={Salad} text="Sin plan nutricional activo" />}
-            </SectionCard>
-          )}
+          </CollapsibleCard>
 
         </div>
 
-        {/* ── Right sidebar ── */}
-        <aside className="w-60 flex-shrink-0 space-y-4">
-
-          {/* Nueva consulta CTA */}
-          <button onClick={() => setOpenConsult('new')}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-semibold text-sm transition-colors shadow-sm">
-            <Plus className="w-4 h-4" /> Nueva consulta
-          </button>
-
-          {/* Stats */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Resumen</p>
-            <div className="space-y-2.5">
-              {[
-                { label: 'Consultas', value: consultations.length, color: 'text-primary-600' },
-                { label: 'Problemas activos', value: activeProblems.length, color: 'text-red-500' },
-                { label: 'Medicamentos activos', value: activeMeds.length, color: 'text-purple-500' },
-                { label: 'Vacunas', value: vaccines.length, color: 'text-amber-500' },
-              ].map(({ label, value, color }) => (
-                <div key={label} className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">{label}</span>
-                  <span className={cn('text-sm font-bold', color)}>{value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Patient info */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Datos</p>
-            <div className="space-y-2">
-              {[
-                { label: 'Tipo de sangre', value: p.tipo_sangre, highlight: 'text-red-600 font-bold' },
-                { label: 'CURP', value: p.curp, mono: true },
-                { label: 'Teléfono', value: p.telefono },
-                { label: 'Correo', value: p.email },
-                { label: 'Dirección', value: p.direccion },
-              ].map(({ label, value, highlight, mono }) => value ? (
-                <div key={label}>
-                  <p className="text-xs text-slate-400">{label}</p>
-                  <p className={cn('text-xs', highlight || 'text-slate-700', mono && 'font-mono')}>{value}</p>
-                </div>
-              ) : null)}
-            </div>
-          </div>
-
-          {/* Allergies alert */}
-          {p.clinical_background?.alergias && (
-            <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
-              <p className="text-xs font-bold text-red-600 mb-1">⚠ Alergias</p>
-              <p className="text-xs text-red-700 leading-relaxed">{p.clinical_background.alergias}</p>
-            </div>
-          )}
-
-          {/* Próxima cita */}
-          {(() => {
-            const upcoming = [...(p.appointments || [])]
-              .filter(a => new Date(a.fecha_hora) > new Date() && a.estado !== 'cancelada')
-              .sort((a, b) => new Date(a.fecha_hora) - new Date(b.fecha_hora))[0]
-            return upcoming ? (
-              <div className="bg-white rounded-2xl border border-slate-200 p-4">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Próxima cita</p>
-                <p className="text-sm font-semibold text-slate-700">
-                  {new Date(upcoming.fecha_hora).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'long' })}
-                </p>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {new Date(upcoming.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-                </p>
-                {upcoming.motivo && <p className="text-xs text-slate-500 mt-1 italic">{upcoming.motivo}</p>}
+        {/* ══ DATOS DEL PACIENTE ══════════════════════════════════════ */}
+        <CollapsibleCard
+          icon={FaUserDoctor} iconBg="bg-slate-100" iconColor="text-slate-500"
+          title="Datos del paciente" defaultOpen={false}
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {[
+              { label: 'Tipo de sangre', value: p.tipo_sangre, highlight: 'text-red-600 font-bold text-base' },
+              { label: 'CURP', value: p.curp, mono: true },
+              { label: 'Teléfono', value: p.telefono },
+              { label: 'Correo electrónico', value: p.email },
+              { label: 'Dirección', value: p.direccion },
+              { label: 'Fecha de nacimiento', value: p.fecha_nacimiento ? formatFecha(p.fecha_nacimiento) : null },
+              { label: 'Sexo', value: sexLabel[p.sexo] || p.sexo },
+              { label: 'Edad', value: edad ? `${edad} años` : null },
+            ].filter(d => d.value).map(({ label, value, highlight, mono }) => (
+              <div key={label}>
+                <p className="text-xs text-slate-400 mb-0.5">{label}</p>
+                <p className={cn('text-sm', highlight || 'text-slate-700', mono && 'font-mono')}>{value}</p>
               </div>
-            ) : null
-          })()}
+            ))}
+          </div>
+        </CollapsibleCard>
 
-        </aside>
       </div>
 
-      {/* Modals */}
+      {/* ── Modals ──────────────────────────────────────────────── */}
       {showEdit && <EditPatientModal patient={p} onClose={() => setShowEdit(false)} />}
       {openConsult !== null && (
         <ConsultationModal
@@ -463,15 +583,16 @@ export default function PatientDetailPage() {
   )
 }
 
-/* ─── inline form components ───────────────────────────────────── */
-
+/* ─── VitalsForm ────────────────────────────────────────────────── */
 function VitalsForm({ patientId, onDone }) {
   const { addVitalSigns } = usePatientsStore()
   const [saving, setSaving] = useState(false)
-  const [f, setF] = useState({ peso_kg:'', talla_cm:'', temperatura:'', frec_cardiaca:'',
-    frec_respiratoria:'', presion_sistolica:'', presion_diastolica:'', saturacion_o2:'',
-    porc_grasa:'', masa_muscular:'' })
-  const set = (k, v) => setF(p => ({ ...p, [k]: v }))
+  const [f, setF] = useState({
+    peso_kg:'', talla_cm:'', temperatura:'', frec_cardiaca:'',
+    frec_respiratoria:'', presion_sistolica:'', presion_diastolica:'',
+    saturacion_o2:'', porc_grasa:'', masa_muscular:''
+  })
+  const set = (k, v) => setF(prev => ({ ...prev, [k]: v }))
   const imc = calcIMC(f.peso_kg, f.talla_cm)
   const imcInfo = clasificarIMC(imc)
 
@@ -485,22 +606,26 @@ function VitalsForm({ patientId, onDone }) {
     onDone()
   }
 
+  const fields = [
+    { k:'peso_kg', label:'Peso (kg)', ph:'70.5' },
+    { k:'talla_cm', label:'Talla (cm)', ph:'170' },
+    { k:'temperatura', label:'Temp. (°C)', ph:'36.5' },
+    { k:'frec_cardiaca', label:'FC (lpm)', ph:'72' },
+    { k:'frec_respiratoria', label:'FR (rpm)', ph:'16' },
+    { k:'presion_sistolica', label:'P. sistólica', ph:'120' },
+    { k:'presion_diastolica', label:'P. diastólica', ph:'80' },
+    { k:'saturacion_o2', label:'SpO₂ (%)', ph:'98' },
+    { k:'porc_grasa', label:'% Grasa', ph:'20' },
+    { k:'masa_muscular', label:'M. Muscular (kg)', ph:'35' },
+  ]
+
   return (
-    <form onSubmit={handleSubmit} className="mb-5 p-4 bg-blue-50 rounded-xl border border-blue-100 space-y-3">
-      <p className="text-sm font-semibold text-blue-700">Nueva medición</p>
+    <form onSubmit={handleSubmit} className="mb-4 p-4 bg-rose-50 rounded-xl border border-rose-100 space-y-3">
+      <p className="text-sm font-semibold text-rose-700 flex items-center gap-2">
+        <FaHeartPulse className="w-4 h-4" /> Nueva medición de signos vitales
+      </p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { k:'peso_kg', label:'Peso (kg)', ph:'70.5' },
-          { k:'talla_cm', label:'Talla (cm)', ph:'170' },
-          { k:'temperatura', label:'Temp. (°C)', ph:'36.5' },
-          { k:'frec_cardiaca', label:'FC (lpm)', ph:'72' },
-          { k:'frec_respiratoria', label:'FR (rpm)', ph:'16' },
-          { k:'presion_sistolica', label:'P. sistólica', ph:'120' },
-          { k:'presion_diastolica', label:'P. diastólica', ph:'80' },
-          { k:'saturacion_o2', label:'SpO₂ (%)', ph:'98' },
-          { k:'porc_grasa', label:'% Grasa', ph:'20' },
-          { k:'masa_muscular', label:'M. Muscular (kg)', ph:'35' },
-        ].map(({ k, label, ph }) => (
+        {fields.map(({ k, label, ph }) => (
           <div key={k}>
             <label className="text-xs text-slate-500 mb-1 block">{label}</label>
             <input type="number" step="0.1" className="input text-sm py-2" placeholder={ph}
@@ -509,7 +634,7 @@ function VitalsForm({ patientId, onDone }) {
         ))}
         {imc && (
           <div>
-            <label className="text-xs text-slate-500 mb-1 block">IMC</label>
+            <label className="text-xs text-slate-500 mb-1 block">IMC (calculado)</label>
             <div className="input text-sm py-2 bg-white flex items-center gap-2">
               <span className="font-semibold">{imc}</span>
               {imcInfo && <span className="text-xs text-slate-500">{imcInfo.label}</span>}
@@ -527,11 +652,13 @@ function VitalsForm({ patientId, onDone }) {
   )
 }
 
+/* ─── MedForm ───────────────────────────────────────────────────── */
 function MedForm({ patientId, onDone }) {
   const { addMedication } = usePatientsStore()
   const [saving, setSaving] = useState(false)
   const [f, setF] = useState({ nombre:'', dosis:'', frecuencia:'', via:'', notas:'' })
-  const set = (k, v) => setF(p => ({ ...p, [k]: v }))
+  const set = (k, v) => setF(prev => ({ ...prev, [k]: v }))
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
@@ -539,23 +666,37 @@ function MedForm({ patientId, onDone }) {
     setSaving(false)
     onDone()
   }
+
   return (
-    <form onSubmit={handleSubmit} className="mb-5 p-4 bg-purple-50 rounded-xl border border-purple-100 space-y-3">
-      <p className="text-sm font-semibold text-purple-700">Nuevo medicamento</p>
+    <form onSubmit={handleSubmit} className="mb-4 p-4 bg-purple-50 rounded-xl border border-purple-100 space-y-3">
+      <p className="text-sm font-semibold text-purple-700 flex items-center gap-2">
+        <FaPills className="w-4 h-4" /> Nuevo medicamento
+      </p>
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
           <label className="text-xs text-slate-500 mb-1 block">Nombre *</label>
-          <input className="input text-sm py-2" placeholder="Metformina 850mg" value={f.nombre} onChange={e => set('nombre', e.target.value)} required />
+          <input className="input text-sm py-2" placeholder="Metformina 850mg"
+            value={f.nombre} onChange={e => set('nombre', e.target.value)} required />
         </div>
-        <div><label className="text-xs text-slate-500 mb-1 block">Dosis</label><input className="input text-sm py-2" placeholder="850mg" value={f.dosis} onChange={e => set('dosis', e.target.value)} /></div>
-        <div><label className="text-xs text-slate-500 mb-1 block">Frecuencia</label><input className="input text-sm py-2" placeholder="Cada 12 hrs" value={f.frecuencia} onChange={e => set('frecuencia', e.target.value)} /></div>
-        <div><label className="text-xs text-slate-500 mb-1 block">Vía</label>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Dosis</label>
+          <input className="input text-sm py-2" placeholder="850mg" value={f.dosis} onChange={e => set('dosis', e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Frecuencia</label>
+          <input className="input text-sm py-2" placeholder="Cada 12 hrs" value={f.frecuencia} onChange={e => set('frecuencia', e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Vía</label>
           <select className="input text-sm py-2" value={f.via} onChange={e => set('via', e.target.value)}>
             <option value="">—</option>
             {['Oral','IV','IM','SC','Tópica','Inhalatoria','Sublingual'].map(v => <option key={v}>{v}</option>)}
           </select>
         </div>
-        <div><label className="text-xs text-slate-500 mb-1 block">Notas</label><input className="input text-sm py-2" placeholder="Con alimentos..." value={f.notas} onChange={e => set('notas', e.target.value)} /></div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Notas</label>
+          <input className="input text-sm py-2" placeholder="Con alimentos..." value={f.notas} onChange={e => set('notas', e.target.value)} />
+        </div>
       </div>
       <div className="flex gap-2">
         <button type="button" onClick={onDone} className="btn-secondary text-sm py-2">Cancelar</button>
@@ -567,11 +708,13 @@ function MedForm({ patientId, onDone }) {
   )
 }
 
+/* ─── VaxForm ───────────────────────────────────────────────────── */
 function VaxForm({ patientId, onDone }) {
   const { addVaccine } = usePatientsStore()
   const [saving, setSaving] = useState(false)
   const [f, setF] = useState({ nombre:'', fecha_aplicacion:'', lote:'', laboratorio:'', dosis_numero:'', proxima_dosis:'' })
-  const set = (k, v) => setF(p => ({ ...p, [k]: v }))
+  const set = (k, v) => setF(prev => ({ ...prev, [k]: v }))
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
@@ -579,21 +722,38 @@ function VaxForm({ patientId, onDone }) {
     setSaving(false)
     onDone()
   }
+
   return (
-    <form onSubmit={handleSubmit} className="mb-5 p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-3">
-      <p className="text-sm font-semibold text-amber-700">Nueva vacuna</p>
+    <form onSubmit={handleSubmit} className="mb-4 p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-3">
+      <p className="text-sm font-semibold text-amber-700 flex items-center gap-2">
+        <MdVaccines className="w-4 h-4" /> Nueva vacuna
+      </p>
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
           <label className="text-xs text-slate-500 mb-1 block">Vacuna *</label>
           <select className="input text-sm py-2" value={f.nombre} onChange={e => set('nombre', e.target.value)} required>
-            <option value="">Seleccionar</option>
-            {['COVID-19','Influenza','Hepatitis A','Hepatitis B','Tétanos','Neumococo','VPH','Sarampión/Rubéola','Varicela','Otra'].map(v => <option key={v}>{v}</option>)}
+            <option value="">Seleccionar...</option>
+            {['COVID-19','Influenza','Hepatitis A','Hepatitis B','Tétanos','Neumococo','VPH','Sarampión/Rubéola','Varicela','Otra'].map(v => (
+              <option key={v}>{v}</option>
+            ))}
           </select>
         </div>
-        <div><label className="text-xs text-slate-500 mb-1 block">Fecha aplicación</label><input type="date" className="input text-sm py-2" value={f.fecha_aplicacion} onChange={e => set('fecha_aplicacion', e.target.value)} /></div>
-        <div><label className="text-xs text-slate-500 mb-1 block">Próxima dosis</label><input type="date" className="input text-sm py-2" value={f.proxima_dosis} onChange={e => set('proxima_dosis', e.target.value)} /></div>
-        <div><label className="text-xs text-slate-500 mb-1 block">Lote</label><input className="input text-sm py-2" value={f.lote} onChange={e => set('lote', e.target.value)} /></div>
-        <div><label className="text-xs text-slate-500 mb-1 block">Laboratorio</label><input className="input text-sm py-2" value={f.laboratorio} onChange={e => set('laboratorio', e.target.value)} /></div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Fecha aplicación</label>
+          <input type="date" className="input text-sm py-2" value={f.fecha_aplicacion} onChange={e => set('fecha_aplicacion', e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Próxima dosis</label>
+          <input type="date" className="input text-sm py-2" value={f.proxima_dosis} onChange={e => set('proxima_dosis', e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Lote</label>
+          <input className="input text-sm py-2" value={f.lote} onChange={e => set('lote', e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Laboratorio</label>
+          <input className="input text-sm py-2" value={f.laboratorio} onChange={e => set('laboratorio', e.target.value)} />
+        </div>
       </div>
       <div className="flex gap-2">
         <button type="button" onClick={onDone} className="btn-secondary text-sm py-2">Cancelar</button>
@@ -605,10 +765,12 @@ function VaxForm({ patientId, onDone }) {
   )
 }
 
+/* ─── ProblemForm ───────────────────────────────────────────────── */
 function ProblemForm({ patientId, onDone }) {
   const [saving, setSaving] = useState(false)
   const [f, setF] = useState({ cie10_codigo:'', cie10_descripcion:'', estado:'activo', notas:'' })
-  const set = (k, v) => setF(p => ({ ...p, [k]: v }))
+  const set = (k, v) => setF(prev => ({ ...prev, [k]: v }))
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
@@ -616,18 +778,36 @@ function ProblemForm({ patientId, onDone }) {
     setSaving(false)
     onDone()
   }
+
   return (
-    <form onSubmit={handleSubmit} className="mb-5 p-4 bg-red-50 rounded-xl border border-red-100 space-y-3">
-      <p className="text-sm font-semibold text-red-600">Nuevo problema / diagnóstico</p>
+    <form onSubmit={handleSubmit} className="mb-4 p-4 bg-red-50 rounded-xl border border-red-100 space-y-3">
+      <p className="text-sm font-semibold text-red-600 flex items-center gap-2">
+        <FaClipboardList className="w-4 h-4" /> Nuevo problema / diagnóstico
+      </p>
       <div className="grid grid-cols-2 gap-3">
-        <div><label className="text-xs text-slate-500 mb-1 block">Código CIE-10</label><input className="input text-sm py-2 font-mono" placeholder="E11.9" value={f.cie10_codigo} onChange={e => set('cie10_codigo', e.target.value.toUpperCase())} /></div>
-        <div><label className="text-xs text-slate-500 mb-1 block">Estado</label>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Código CIE-10</label>
+          <input className="input text-sm py-2 font-mono" placeholder="E11.9"
+            value={f.cie10_codigo} onChange={e => set('cie10_codigo', e.target.value.toUpperCase())} />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Estado</label>
           <select className="input text-sm py-2" value={f.estado} onChange={e => set('estado', e.target.value)}>
-            <option value="activo">Activo</option><option value="inactivo">Inactivo</option><option value="resuelto">Resuelto</option>
+            <option value="activo">Activo</option>
+            <option value="inactivo">Inactivo</option>
+            <option value="resuelto">Resuelto</option>
           </select>
         </div>
-        <div className="col-span-2"><label className="text-xs text-slate-500 mb-1 block">Descripción *</label><input className="input text-sm py-2" placeholder="Diabetes mellitus tipo 2..." value={f.cie10_descripcion} onChange={e => set('cie10_descripcion', e.target.value)} required /></div>
-        <div className="col-span-2"><label className="text-xs text-slate-500 mb-1 block">Notas</label><input className="input text-sm py-2" placeholder="Observaciones..." value={f.notas} onChange={e => set('notas', e.target.value)} /></div>
+        <div className="col-span-2">
+          <label className="text-xs text-slate-500 mb-1 block">Descripción *</label>
+          <input className="input text-sm py-2" placeholder="Diabetes mellitus tipo 2..."
+            value={f.cie10_descripcion} onChange={e => set('cie10_descripcion', e.target.value)} required />
+        </div>
+        <div className="col-span-2">
+          <label className="text-xs text-slate-500 mb-1 block">Notas</label>
+          <input className="input text-sm py-2" placeholder="Observaciones..."
+            value={f.notas} onChange={e => set('notas', e.target.value)} />
+        </div>
       </div>
       <div className="flex gap-2">
         <button type="button" onClick={onDone} className="btn-secondary text-sm py-2">Cancelar</button>
@@ -639,8 +819,13 @@ function ProblemForm({ patientId, onDone }) {
   )
 }
 
+/* ─── ProblemsView ──────────────────────────────────────────────── */
 function ProblemsView({ problems, onRefresh }) {
-  const STATUS = { activo: { label:'Activo', cls:'bg-red-100 text-red-700' }, inactivo: { label:'Inactivo', cls:'bg-slate-100 text-slate-500' }, resuelto: { label:'Resuelto', cls:'bg-green-100 text-green-700' } }
+  const STATUS = {
+    activo:   { label:'Activo',   cls:'bg-red-100 text-red-700' },
+    inactivo: { label:'Inactivo', cls:'bg-slate-100 text-slate-500' },
+    resuelto: { label:'Resuelto', cls:'bg-green-100 text-green-700' },
+  }
   const changeStatus = async (id, estado) => {
     await supabase.from('patient_problems').update({ estado }).eq('id', id)
     onRefresh()
@@ -650,12 +835,15 @@ function ProblemsView({ problems, onRefresh }) {
       {problems.map(prob => {
         const s = STATUS[prob.estado] || STATUS.activo
         return (
-          <div key={prob.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
-            {prob.cie10_codigo && <span className="text-xs font-mono bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-600 flex-shrink-0">{prob.cie10_codigo}</span>}
+          <div key={prob.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+            {prob.cie10_codigo && (
+              <span className="text-xs font-mono bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-600 flex-shrink-0">
+                {prob.cie10_codigo}
+              </span>
+            )}
             <span className="text-sm text-slate-700 flex-1 min-w-0 truncate">{prob.cie10_descripcion}</span>
-            <select value={prob.estado}
-              onChange={e => changeStatus(prob.id, e.target.value)}
-              className={cn('text-xs px-2 py-1 rounded-full font-semibold border-0 focus:outline-none cursor-pointer', s.cls)}>
+            <select value={prob.estado} onChange={e => changeStatus(prob.id, e.target.value)}
+              className={cn('text-xs px-2 py-1 rounded-full font-semibold border-0 focus:outline-none cursor-pointer flex-shrink-0', s.cls)}>
               <option value="activo">Activo</option>
               <option value="inactivo">Inactivo</option>
               <option value="resuelto">Resuelto</option>
@@ -667,38 +855,37 @@ function ProblemsView({ problems, onRefresh }) {
   )
 }
 
+/* ─── MedsView ──────────────────────────────────────────────────── */
 function MedsView({ meds, onToggle }) {
   const active = meds.filter(m => m.activo)
   const inactive = meds.filter(m => !m.activo)
   return (
-    <div className="space-y-3">
-      {active.length > 0 && (
-        <div className="space-y-2">
-          {active.map(m => (
-            <div key={m.id} className="flex items-start gap-3 p-3 bg-purple-50 rounded-xl border border-purple-100">
-              <Pill className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-800">{m.nombre}</p>
-                <p className="text-xs text-slate-500">{[m.dosis, m.frecuencia, m.via].filter(Boolean).join(' · ')}</p>
-              </div>
-              <button onClick={() => onToggle(m)} title="Desactivar" className="flex-shrink-0 text-slate-300 hover:text-red-400 transition-colors">
-                <XCircle className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+    <div className="space-y-2">
+      {active.map(m => (
+        <div key={m.id} className="flex items-start gap-2.5 p-2.5 bg-purple-50 rounded-xl border border-purple-100">
+          <FaPills className="w-4 h-4 text-purple-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-800">{m.nombre}</p>
+            <p className="text-xs text-slate-500">{[m.dosis, m.frecuencia, m.via].filter(Boolean).join(' · ')}</p>
+          </div>
+          <button onClick={() => onToggle(m)} title="Desactivar"
+            className="flex-shrink-0 text-slate-300 hover:text-red-400 transition-colors mt-0.5">
+            <XCircle className="w-4 h-4" />
+          </button>
         </div>
-      )}
+      ))}
       {inactive.length > 0 && (
         <details className="group">
-          <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600 list-none flex items-center gap-1">
-            <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" /> {inactive.length} medicamento(s) inactivo(s)
+          <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600 list-none flex items-center gap-1 mt-1">
+            <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
+            {inactive.length} inactivo(s)
           </summary>
           <div className="mt-2 space-y-1 opacity-50">
             {inactive.map(m => (
-              <div key={m.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50">
-                <Pill className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-xs text-slate-500 line-through">{m.nombre}</span>
-                <button onClick={() => onToggle(m)} className="ml-auto text-slate-300 hover:text-green-500 transition-colors">
+              <div key={m.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50">
+                <FaPills className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-xs text-slate-500 line-through flex-1">{m.nombre}</span>
+                <button onClick={() => onToggle(m)} className="text-slate-300 hover:text-green-500 transition-colors">
                   <CheckCircle className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -710,6 +897,7 @@ function MedsView({ meds, onToggle }) {
   )
 }
 
+/* ─── VaccinesView ──────────────────────────────────────────────── */
 function VaccinesView({ vaccines }) {
   const hoy = new Date()
   return (
@@ -717,12 +905,17 @@ function VaccinesView({ vaccines }) {
       {vaccines.map(v => {
         const pending = v.proxima_dosis && new Date(v.proxima_dosis) <= hoy
         return (
-          <div key={v.id} className={cn('flex items-center gap-3 p-3 rounded-xl border',
-            pending ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100')}>
-            <Syringe className={cn('w-4 h-4 flex-shrink-0', pending ? 'text-amber-500' : 'text-slate-400')} />
+          <div key={v.id} className={cn(
+            'flex items-center gap-2.5 p-2.5 rounded-xl border',
+            pending ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100'
+          )}>
+            <MdVaccines className={cn('w-4 h-4 flex-shrink-0', pending ? 'text-amber-500' : 'text-slate-400')} />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-800">{v.nombre}</p>
-              <p className="text-xs text-slate-400">{v.fecha_aplicacion ? `Aplicada: ${formatFecha(v.fecha_aplicacion)}` : ''}{v.dosis_numero ? ` · Dosis ${v.dosis_numero}` : ''}</p>
+              <p className="text-sm font-semibold text-slate-800">{v.nombre}</p>
+              <p className="text-xs text-slate-400">
+                {v.fecha_aplicacion ? `Aplicada: ${formatFecha(v.fecha_aplicacion)}` : ''}
+                {v.dosis_numero ? ` · Dosis ${v.dosis_numero}` : ''}
+              </p>
             </div>
             {v.proxima_dosis && (
               <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0',
@@ -737,21 +930,22 @@ function VaccinesView({ vaccines }) {
   )
 }
 
+/* ─── BackgroundView ────────────────────────────────────────────── */
 function BackgroundView({ background, patientId, onDone }) {
   const FIELDS = [
-    { k: 'alergias', label: 'Alergias' },
-    { k: 'antec_patologicos', label: 'Antecedentes patológicos' },
-    { k: 'antec_no_patologicos', label: 'No patológicos' },
-    { k: 'antec_familiares', label: 'Heredofamiliares' },
+    { k: 'alergias',               label: 'Alergias' },
+    { k: 'antec_patologicos',      label: 'Patológicos' },
+    { k: 'antec_no_patologicos',   label: 'No patológicos' },
+    { k: 'antec_familiares',       label: 'Heredofamiliares' },
     { k: 'antec_gineco_obstetricos', label: 'Gineco-obstétricos' },
-    { k: 'antec_perinatales', label: 'Perinatales' },
-    { k: 'antec_postnatales', label: 'Postnatales' },
-    { k: 'antec_psiquiatricos', label: 'Psiquiátricos' },
+    { k: 'antec_perinatales',      label: 'Perinatales' },
+    { k: 'antec_postnatales',      label: 'Postnatales' },
+    { k: 'antec_psiquiatricos',    label: 'Psiquiátricos' },
   ]
   const { upsertBackground } = usePatientsStore()
   const [editing, setEditing] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState(background || {})
+  const [saving, setSaving]   = useState(false)
+  const [form, setForm]       = useState(background || {})
 
   const handleSave = async () => {
     setSaving(true)
@@ -771,16 +965,17 @@ function BackgroundView({ background, patientId, onDone }) {
                 {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Guardar
               </button>
             </div>
-          : <button onClick={() => setEditing(true)} className="flex items-center gap-1 text-xs text-primary-600 font-semibold hover:underline">
+          : <button onClick={() => setEditing(true)}
+              className="flex items-center gap-1 text-xs text-primary-600 font-semibold hover:underline">
               <Edit2 className="w-3 h-3" /> Editar
             </button>}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="space-y-3">
         {FIELDS.map(({ k, label }) => (
           <div key={k}>
             <label className="text-xs font-semibold text-slate-500 block mb-1">{label}</label>
             {editing
-              ? <textarea rows={2} className="input text-sm resize-none"
+              ? <textarea rows={2} className="input text-sm resize-none w-full"
                   value={form[k] || ''} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} />
               : <p className={cn('text-sm', form[k] ? 'text-slate-700' : 'text-slate-300 italic')}>
                   {form[k] || 'No registrado'}
