@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePatientsStore } from '../store/patientsStore'
+import { useAuthStore } from '../store/authStore'
 import { supabase } from '../lib/supabase'
 import {
   ArrowLeft, Edit2, Plus, Loader2, ChevronDown, ChevronUp,
@@ -20,6 +21,7 @@ import {
 import { calcEdad, calcIMC, clasificarIMC, formatFecha, formatFechaHora, cn } from '../utils'
 import EditPatientModal from '../components/patients/EditPatientModal'
 import ConsultationModal from '../components/patients/ConsultationModal'
+import { NewAppointmentModal } from './AppointmentsPage'
 
 /* ─── mini helpers ──────────────────────────────────────────────── */
 function Card({ children, className = '' }) {
@@ -141,9 +143,11 @@ export default function PatientDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { fetchPatient, currentPatient, loading, updateMedication } = usePatientsStore()
+  const { doctor } = useAuthStore()
 
   const [showEdit, setShowEdit]             = useState(false)
   const [openConsult, setOpenConsult]       = useState(null)
+  const [showNewAppt, setShowNewAppt]       = useState(false)
   const [problems, setProblems]             = useState([])
   const [notes, setNotes]                   = useState([])
   const [files, setFiles]                   = useState([])
@@ -255,7 +259,12 @@ export default function PatientDetailPage() {
             <button onClick={() => setShowEdit(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
               <Edit2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Editar paciente</span>
+              <span className="hidden sm:inline">Editar</span>
+            </button>
+            <button onClick={() => setShowNewAppt(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
+              <Calendar className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Agendar cita</span>
             </button>
             <button onClick={() => setOpenConsult('new')}
               className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 rounded-xl transition-colors shadow-sm">
@@ -603,6 +612,15 @@ export default function PatientDetailPage() {
 
       {/* ── Modals ──────────────────────────────────────────────── */}
       {showEdit && <EditPatientModal patient={p} onClose={() => setShowEdit(false)} />}
+      {showNewAppt && (
+        <NewAppointmentModal
+          patients={[p]}
+          doctorId={doctor?.id}
+          preselectedPatientId={p.id}
+          onClose={() => setShowNewAppt(false)}
+          onSaved={() => { setShowNewAppt(false); fetchPatient(id) }}
+        />
+      )}
       {openConsult !== null && (
         <ConsultationModal
           patient={{ ...p, patient_problems: problems }}
