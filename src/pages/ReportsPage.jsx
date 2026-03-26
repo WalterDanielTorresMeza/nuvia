@@ -1,276 +1,342 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { calcEdad } from '../utils'
-import { Users, Calendar, ClipboardList, TrendingUp, Loader2, Activity } from 'lucide-react'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, AreaChart, Area,
-} from 'recharts'
+  Download, Loader2, Users, Calendar, ClipboardList,
+  DollarSign, Search, FileText,
+} from 'lucide-react'
 import { cn } from '../utils'
 
-const COLORS = ['#0ea5e9','#8b5cf6','#ef4444','#10b981','#f59e0b','#ec4899','#6366f1']
+/* ─── helpers ─── */
+const toDate = (s) => s ? new Date(s).toLocaleDateString('es-MX', { day:'numeric', month:'short', year:'numeric' }) : '—'
+const toTime = (s) => s ? new Date(s).toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' }) : ''
+const fmt    = (n) => n != null ? new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN', minimumFractionDigits:0 }).format(n) : '—'
 
-const TIPO_LABEL = { presencial: 'Presencial', videoconsulta: 'Videoconsulta', urgencia: 'Urgencia' }
-const ESTADO_LABEL = { programada:'Programada', confirmada:'Confirmada', completada:'Completada', cancelada:'Cancelada', no_asistio:'No asistió' }
-
-function StatCard({ label, value, icon: Icon, color, sub }) {
-  return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between gap-4">
-      <div>
-        <p className="text-sm text-slate-500">{label}</p>
-        <p className="text-3xl font-bold text-slate-800 mt-1">{value}</p>
-        {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
-      </div>
-      <div className={`w-12 h-12 ${color} rounded-xl flex items-center justify-center flex-shrink-0`}>
-        <Icon className="w-6 h-6" />
-      </div>
-    </div>
-  )
+function downloadCSV(rows, cols, filename) {
+  if (!rows.length) return
+  const header = cols.map(c => c.label).join(',')
+  const body   = rows.map(r => cols.map(c => `"${(c.get(r) ?? '').toString().replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob   = new Blob(['\uFEFF' + header + '\n' + body], { type: 'text/csv;charset=utf-8' })
+  const url    = URL.createObjectURL(blob)
+  const a      = document.createElement('a')
+  a.href = url; a.download = filename + '_' + new Date().toISOString().slice(0,10) + '.csv'; a.click()
+  URL.revokeObjectURL(url)
 }
 
+const todayStr     = () => new Date().toISOString().slice(0,10)
+const monthStartStr = () => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10)
+
+/* ─── Report type definitions ─── */
+const TIPOS = [
+  { id: 'pacientes',   label: 'Pacientes',    icon: Users,         color: 'text-blue-600'   },
+  { id: 'citas',       label: 'Citas',         icon: Calendar,      color: 'text-emerald-600'},
+  { id: 'consultas',   label: 'Consultas',     icon: ClipboardList, color: 'text-violet-600' },
+  { id: 'facturacion', label: 'Facturación',   icon: DollarSign,    color: 'text-amber-600'  },
+]
+
+const COLUMNS = {
+  pacientes: [
+    { label: 'Nombre',         get: r => `${r.nombre} ${r.apellidos}` },
+    { label: 'Sexo',           get: r => r.sexo === 'M' ? 'Masculino' : r.sexo === 'F' ? 'Femenino' : r.sexo || '—' },
+    { label: 'Edad',           get: r => calcEdad(r.fecha_nacimiento) != null ? `${calcEdad(r.fecha_nacimiento)} años` : '—' },
+    { label: 'Teléfono',       get: r => r.telefono || '—' },
+    { label: 'Email',          get: r => r.email || '—' },
+    { label: 'Fecha registro', get: r => toDate(r.created_at) },
+  ],
+  citas: [
+    { label: 'Fecha',    get: r => toDate(r.fecha_hora) },
+    { label: 'Hora',     get: r => toTime(r.fecha_hora) },
+    { label: 'Paciente', get: r => r.patients ? `${r.patients.nombre} ${r.patients.apellidos}` : '—' },
+    { label: 'Tipo',     get: r => ({ presencial:'Presencial', videoconsulta:'Videoconsulta', urgencia:'Urgencia' }[r.tipo] || r.tipo) },
+    { label: 'Estado',   get: r => ({ programada:'Programada', confirmada:'Confirmada', completada:'Completada', cancelada:'Cancelada', no_asistio:'No asistió' }[r.estado] || r.estado) },
+    { label: 'Motivo',   get: r => r.motivo || '—' },
+  ],
+  consultas: [
+    { label: 'Fecha',       get: r => toDate(r.fecha) },
+    { label: 'Paciente',    get: r => r.patients ? `${r.patients.nombre} ${r.patients.apellidos}` : '—' },
+    { label: 'Motivo',      get: r => r.motivo || '—' },
+    { label: 'Diagnóstico', get: r => r.diagnostico || '—' },
+    { label: 'Plan',        get: r => r.plan_tratamiento || '—' },
+  ],
+  facturacion: [
+    { label: 'Fecha',     get: r => toDate(r.fecha) },
+    { label: 'Folio',     get: r => r.folio || '—' },
+    { label: 'Paciente',  get: r => r.patients ? `${r.patients.nombre} ${r.patients.apellidos}` : '—' },
+    { label: 'Concepto',  get: r => r.concepto || '—' },
+    { label: 'Total',     get: r => r.total != null ? r.total.toString() : '—' },
+    { label: 'Estado',    get: r => ({ pendiente:'Pendiente', timbrada:'Pagada', cancelada:'Cancelada' }[r.estado] || r.estado) },
+  ],
+}
+
+/* ─── Summary stats per type ─── */
+function Summary({ tipo, rows }) {
+  if (!rows.length) return null
+  if (tipo === 'pacientes') {
+    const m = rows.filter(r => r.sexo === 'M').length
+    const f = rows.filter(r => r.sexo === 'F').length
+    return (
+      <div className="flex gap-4 flex-wrap text-sm">
+        <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-lg font-medium">{rows.length} pacientes</span>
+        <span className="bg-slate-50 text-slate-600 px-3 py-1 rounded-lg">♂ {m} masculino</span>
+        <span className="bg-slate-50 text-slate-600 px-3 py-1 rounded-lg">♀ {f} femenino</span>
+      </div>
+    )
+  }
+  if (tipo === 'citas') {
+    const completadas = rows.filter(r => r.estado === 'completada').length
+    const canceladas  = rows.filter(r => r.estado === 'cancelada').length
+    return (
+      <div className="flex gap-4 flex-wrap text-sm">
+        <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg font-medium">{rows.length} citas</span>
+        <span className="bg-green-50 text-green-700 px-3 py-1 rounded-lg">{completadas} completadas</span>
+        <span className="bg-red-50 text-red-600 px-3 py-1 rounded-lg">{canceladas} canceladas</span>
+      </div>
+    )
+  }
+  if (tipo === 'consultas') {
+    return (
+      <div className="flex gap-4 flex-wrap text-sm">
+        <span className="bg-violet-50 text-violet-700 px-3 py-1 rounded-lg font-medium">{rows.length} consultas</span>
+      </div>
+    )
+  }
+  if (tipo === 'facturacion') {
+    const pagado    = rows.filter(r => r.estado === 'timbrada').reduce((s, r) => s + (r.total || 0), 0)
+    const pendiente = rows.filter(r => r.estado === 'pendiente').reduce((s, r) => s + (r.total || 0), 0)
+    return (
+      <div className="flex gap-4 flex-wrap text-sm">
+        <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-lg font-medium">{rows.length} registros</span>
+        <span className="bg-green-50 text-green-700 px-3 py-1 rounded-lg">Cobrado: {fmt(pagado)}</span>
+        <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-lg">Pendiente: {fmt(pendiente)}</span>
+      </div>
+    )
+  }
+  return null
+}
+
+/* ─── Status badge ─── */
+const ESTADO_CLS = {
+  programada: 'bg-blue-100 text-blue-700',
+  confirmada:  'bg-green-100 text-green-700',
+  completada:  'bg-emerald-100 text-emerald-700',
+  cancelada:   'bg-red-100 text-red-600',
+  no_asistio:  'bg-slate-100 text-slate-500',
+  pendiente:   'bg-amber-100 text-amber-700',
+  timbrada:    'bg-green-100 text-green-700',
+}
+
+function CellContent({ tipo, col, row }) {
+  const val = col.get(row)
+  // Color-code Estado column
+  if (col.label === 'Estado') {
+    return <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-lg', ESTADO_CLS[row.estado] || 'bg-slate-100 text-slate-600')}>{val}</span>
+  }
+  if (col.label === 'Total') {
+    return <span className="font-semibold text-slate-800">{fmt(row.total)}</span>
+  }
+  return <>{val}</>
+}
+
+/* ══════════════════════════════════════════════ */
 export default function ReportsPage() {
-  const [loading, setLoading] = useState(true)
-  const [data, setData]       = useState(null)
+  const [tipo,    setTipo]    = useState('pacientes')
+  const [desde,   setDesde]   = useState(monthStartStr())
+  const [hasta,   setHasta]   = useState(todayStr())
+  const [rows,    setRows]    = useState(null)   // null = not yet generated
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
 
-  useEffect(() => { fetchAll() }, [])
+  const hasFecha = tipo !== 'pacientes'
 
-  const fetchAll = async () => {
+  const generate = async () => {
+    setLoading(true); setError('')
     try {
-      const now      = new Date()
-      const startMon = new Date(now.getFullYear(), now.getMonth(), 1)
-      const start6m  = new Date(now.getFullYear(), now.getMonth() - 5, 1)
-      const start12m = new Date(now.getFullYear(), now.getMonth() - 11, 1)
-
-      const [
-        { data: patients },
-        { count: totalConsults },
-        { data: consults6m },
-        { data: appts12m },
-        { count: citasMes },
-      ] = await Promise.all([
-        supabase.from('patients').select('sexo, fecha_nacimiento, created_at').eq('activo', true),
-        supabase.from('consultations').select('*', { count: 'exact', head: true }),
-        supabase.from('consultations').select('fecha').gte('fecha', start6m.toISOString()),
-        supabase.from('appointments').select('tipo, estado, fecha_hora').gte('fecha_hora', start12m.toISOString()),
-        supabase.from('appointments').select('*', { count: 'exact', head: true })
-          .gte('fecha_hora', startMon.toISOString()),
-      ])
-
-      const pats = patients || []
-      const apts = appts12m || []
-
-      // Patients by sex
-      const sexMap = { M: 0, F: 0, Otro: 0 }
-      pats.forEach(p => { sexMap[p.sexo] = (sexMap[p.sexo] || 0) + 1 })
-      const bySex = [
-        { name: 'Masculino', value: sexMap.M },
-        { name: 'Femenino',  value: sexMap.F },
-        { name: 'Otro',      value: sexMap.Otro },
-      ].filter(d => d.value > 0)
-
-      // Patients by age group
-      const ageGroups = { '0-17': 0, '18-35': 0, '36-50': 0, '51-65': 0, '66+': 0 }
-      pats.forEach(p => {
-        const e = calcEdad(p.fecha_nacimiento)
-        if (e == null) return
-        if (e <= 17) ageGroups['0-17']++
-        else if (e <= 35) ageGroups['18-35']++
-        else if (e <= 50) ageGroups['36-50']++
-        else if (e <= 65) ageGroups['51-65']++
-        else ageGroups['66+']++
-      })
-      const byAge = Object.entries(ageGroups).map(([name, value]) => ({ name, value }))
-
-      // Consultations by month (last 6)
-      const mesMap = {}
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-        const key = `${d.getFullYear()}-${d.getMonth()}`
-        mesMap[key] = { mes: d.toLocaleDateString('es-MX', { month: 'short', year: '2-digit' }), consultas: 0 }
+      let data = []
+      if (tipo === 'pacientes') {
+        const { data: d, error: e } = await supabase
+          .from('patients').select('*').eq('activo', true).order('apellidos')
+        if (e) throw e
+        data = d || []
+      } else if (tipo === 'citas') {
+        const { data: d, error: e } = await supabase
+          .from('appointments')
+          .select('*, patients(nombre, apellidos)')
+          .gte('fecha_hora', new Date(desde).toISOString())
+          .lte('fecha_hora', new Date(hasta + 'T23:59:59').toISOString())
+          .order('fecha_hora', { ascending: false })
+        if (e) throw e
+        data = d || []
+      } else if (tipo === 'consultas') {
+        const { data: d, error: e } = await supabase
+          .from('consultations')
+          .select('*, patients(nombre, apellidos)')
+          .gte('fecha', new Date(desde).toISOString())
+          .lte('fecha', new Date(hasta + 'T23:59:59').toISOString())
+          .order('fecha', { ascending: false })
+        if (e) throw e
+        data = d || []
+      } else if (tipo === 'facturacion') {
+        const { data: d, error: e } = await supabase
+          .from('invoices')
+          .select('*, patients(nombre, apellidos)')
+          .gte('fecha', new Date(desde).toISOString())
+          .lte('fecha', new Date(hasta + 'T23:59:59').toISOString())
+          .order('fecha', { ascending: false })
+        if (e) throw e
+        data = d || []
       }
-      ;(consults6m || []).forEach(c => {
-        const d = new Date(c.fecha)
-        const key = `${d.getFullYear()}-${d.getMonth()}`
-        if (mesMap[key]) mesMap[key].consultas++
-      })
-      const byMonth = Object.values(mesMap)
-
-      // Appointments by type
-      const tipoMap = {}
-      apts.forEach(a => { tipoMap[a.tipo] = (tipoMap[a.tipo] || 0) + 1 })
-      const byTipo = Object.entries(tipoMap).map(([k, v]) => ({ name: TIPO_LABEL[k] || k, value: v }))
-
-      // Appointments by status
-      const estadoMap = {}
-      apts.forEach(a => { estadoMap[a.estado] = (estadoMap[a.estado] || 0) + 1 })
-      const byEstado = Object.entries(estadoMap).map(([k, v]) => ({ name: ESTADO_LABEL[k] || k, value: v }))
-
-      // New patients by month (last 6)
-      const newPatsMap = {}
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-        const key = `${d.getFullYear()}-${d.getMonth()}`
-        newPatsMap[key] = { mes: d.toLocaleDateString('es-MX', { month: 'short', year: '2-digit' }), nuevos: 0 }
-      }
-      pats.forEach(p => {
-        const d = new Date(p.created_at)
-        const key = `${d.getFullYear()}-${d.getMonth()}`
-        if (newPatsMap[key]) newPatsMap[key].nuevos++
-      })
-      const newPatsByMonth = Object.values(newPatsMap)
-
-      setData({
-        totalPats: pats.length,
-        totalConsults: totalConsults || 0,
-        citasMes: citasMes || 0,
-        completionRate: apts.length ? Math.round((apts.filter(a => a.estado === 'completada').length / apts.length) * 100) : 0,
-        bySex, byAge, byMonth, byTipo, byEstado, newPatsByMonth,
-      })
+      setRows(data)
+    } catch (e) {
+      setError(e?.message || 'Error al generar reporte')
     } finally {
       setLoading(false)
     }
   }
 
-  if (loading) return (
-    <div className="flex justify-center py-32">
-      <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
-    </div>
-  )
+  const cols    = COLUMNS[tipo]
+  const hasRows = rows !== null
 
-  const d = data || {}
+  const PRESETS = [
+    { label: 'Este mes',     desde: monthStartStr(),  hasta: todayStr() },
+    { label: 'Últ. 3 meses', desde: new Date(new Date().getFullYear(), new Date().getMonth() - 2, 1).toISOString().slice(0,10), hasta: todayStr() },
+    { label: 'Últ. 6 meses', desde: new Date(new Date().getFullYear(), new Date().getMonth() - 5, 1).toISOString().slice(0,10), hasta: todayStr() },
+    { label: 'Este año',     desde: `${new Date().getFullYear()}-01-01`, hasta: todayStr() },
+  ]
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Reportes</h1>
-        <p className="text-slate-400 text-sm mt-0.5">Análisis de tu práctica médica</p>
-      </div>
-
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total pacientes"   value={d.totalPats}      icon={Users}         color="bg-blue-50 text-blue-600" />
-        <StatCard label="Total consultas"   value={d.totalConsults}  icon={ClipboardList} color="bg-violet-50 text-violet-600" />
-        <StatCard label="Citas este mes"    value={d.citasMes}       icon={Calendar}      color="bg-emerald-50 text-emerald-600" />
-        <StatCard label="Tasa de asistencia" value={`${d.completionRate}%`} icon={Activity} color="bg-amber-50 text-amber-600" sub="últimos 12 meses" />
-      </div>
-
-      {/* Row 1: Consultas por mes + Nuevos pacientes */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <div className="flex items-center gap-2 mb-5">
-            <TrendingUp className="w-4 h-4 text-slate-400" />
-            <h2 className="font-semibold text-slate-700">Consultas por mes</h2>
-            <span className="text-xs text-slate-400 ml-auto">últimos 6 meses</span>
-          </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={d.byMonth}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#94a3b8' }} />
-              <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} allowDecimals={false} />
-              <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13 }} />
-              <Bar dataKey="consultas" name="Consultas" fill="#0ea5e9" radius={[4,4,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
+      <div className="flex items-start justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Reportes</h1>
+          <p className="text-slate-400 text-sm mt-0.5">Genera y descarga reportes de tu práctica médica</p>
         </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <div className="flex items-center gap-2 mb-5">
-            <Users className="w-4 h-4 text-slate-400" />
-            <h2 className="font-semibold text-slate-700">Nuevos pacientes por mes</h2>
-          </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={d.newPatsByMonth}>
-              <defs>
-                <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#8b5cf6" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#94a3b8' }} />
-              <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} allowDecimals={false} />
-              <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13 }} />
-              <Area type="monotone" dataKey="nuevos" name="Nuevos" stroke="#8b5cf6" fill="url(#grad)" strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Row 2: Distribución */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Por sexo */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-semibold text-slate-700 mb-4">Pacientes por sexo</h2>
-          {d.bySex.length === 0 ? (
-            <div className="h-44 flex items-center justify-center text-slate-400 text-sm">Sin datos</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie data={d.bySex} cx="50%" cy="50%" innerRadius={45} outerRadius={70} dataKey="value" paddingAngle={3}>
-                  {d.bySex.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
-                <Tooltip />
-                <Legend iconType="circle" iconSize={8} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* Por rango de edad */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-semibold text-slate-700 mb-4">Pacientes por edad</h2>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={d.byAge} layout="vertical">
-              <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} width={45} />
-              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-              <Bar dataKey="value" name="Pacientes" fill="#10b981" radius={[0,4,4,0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Por tipo de cita */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-semibold text-slate-700 mb-4">Tipos de cita</h2>
-          {d.byTipo.length === 0 ? (
-            <div className="h-44 flex items-center justify-center text-slate-400 text-sm">Sin datos</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie data={d.byTipo} cx="50%" cy="50%" outerRadius={70} dataKey="value" paddingAngle={3}>
-                  {d.byTipo.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
-                <Tooltip />
-                <Legend iconType="circle" iconSize={8} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-
-      {/* Row 3: Estado de citas */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h2 className="font-semibold text-slate-700 mb-5">Estado de citas — últimos 12 meses</h2>
-        {d.byEstado.length === 0 ? (
-          <div className="h-16 flex items-center justify-center text-slate-400 text-sm">Sin datos</div>
-        ) : (
-          <div className="flex flex-wrap gap-4">
-            {d.byEstado.map((e, i) => (
-              <div key={i} className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-xl">
-                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
-                <div>
-                  <p className="text-xs text-slate-500">{e.name}</p>
-                  <p className="text-xl font-bold text-slate-800">{e.value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+        {hasRows && rows.length > 0 && (
+          <button
+            onClick={() => downloadCSV(rows, cols, `reporte_${tipo}`)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-semibold text-sm transition-colors shadow-sm"
+          >
+            <Download className="w-4 h-4" /> Descargar CSV
+          </button>
         )}
       </div>
 
+      {/* Report type selector */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-1.5 flex gap-1 flex-wrap">
+        {TIPOS.map(({ id, label, icon: Icon, color }) => (
+          <button key={id} onClick={() => { setTipo(id); setRows(null) }}
+            className={cn(
+              'flex items-center gap-2 flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all',
+              tipo === id
+                ? 'bg-slate-800 text-white shadow-sm'
+                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+            )}>
+            <Icon className={cn('w-4 h-4', tipo === id ? 'text-white' : color)} />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+        {hasFecha && (
+          <>
+            <div className="flex gap-2 flex-wrap">
+              {PRESETS.map(p => (
+                <button key={p.label}
+                  onClick={() => { setDesde(p.desde); setHasta(p.hasta); setRows(null) }}
+                  className={cn('px-3 py-1.5 text-xs rounded-lg font-medium border transition-colors',
+                    desde === p.desde && hasta === p.hasta
+                      ? 'bg-slate-800 text-white border-slate-800'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                  )}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-slate-500 w-10">Desde</label>
+                <input type="date" value={desde} onChange={e => { setDesde(e.target.value); setRows(null) }}
+                  className="input text-sm py-2" />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-slate-500 w-10">Hasta</label>
+                <input type="date" value={hasta} onChange={e => { setHasta(e.target.value); setRows(null) }}
+                  className="input text-sm py-2" />
+              </div>
+            </div>
+          </>
+        )}
+
+        {!hasFecha && (
+          <p className="text-sm text-slate-500">Todos los pacientes activos registrados en el sistema.</p>
+        )}
+
+        <div className="flex items-center justify-between">
+          <button onClick={generate} disabled={loading}
+            className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            {loading ? 'Generando...' : 'Generar reporte'}
+          </button>
+          {hasRows && <Summary tipo={tipo} rows={rows} />}
+        </div>
+
+        {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-xl">{error}</p>}
+      </div>
+
+      {/* Table */}
+      {!hasRows && !loading && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
+          <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <FileText className="w-7 h-7 text-slate-300" />
+          </div>
+          <p className="text-slate-600 font-medium">Configura los filtros y genera el reporte</p>
+          <p className="text-slate-400 text-sm mt-1">Los resultados aparecerán aquí listos para descargar</p>
+        </div>
+      )}
+
+      {hasRows && rows.length === 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+          <p className="text-slate-500">No hay datos en el periodo seleccionado.</p>
+        </div>
+      )}
+
+      {hasRows && rows.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50">
+                  {cols.map(c => (
+                    <th key={c.label} className="text-left px-4 py-3 text-xs font-semibold text-slate-500">{c.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => (
+                  <tr key={row.id || i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    {cols.map(col => (
+                      <td key={col.label} className="px-4 py-3 text-slate-700">
+                        <CellContent tipo={tipo} col={col} row={row} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+            <span>{rows.length} registro{rows.length !== 1 ? 's' : ''}</span>
+            <button onClick={() => downloadCSV(rows, cols, `reporte_${tipo}`)}
+              className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 font-medium">
+              <Download className="w-3.5 h-3.5" /> Descargar CSV
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
