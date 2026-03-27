@@ -98,6 +98,7 @@ function ClinicsSection({ doctorId }) {
   const [loading, setLoading]     = useState(true)
   const [modal, setModal]         = useState(null)   // null | 'new' | clinic-object
   const [deleting, setDeleting]   = useState(null)
+  const [clinicErr, setClinicErr] = useState('')
 
   useEffect(() => { fetchClinics() }, [doctorId])
 
@@ -115,13 +116,25 @@ function ClinicsSection({ doctorId }) {
   }
 
   const handleSave = async (form) => {
+    setClinicErr('')
+    let err
     if (modal === 'new') {
-      await supabase.from('clinics').insert([{ ...form, doctor_id: doctorId }])
+      const { error } = await supabase.from('clinics').insert([{ ...form, doctor_id: doctorId }])
+      err = error
     } else {
-      await supabase.from('clinics').update({
+      const { error } = await supabase.from('clinics').update({
         nombre: form.nombre, direccion: form.direccion,
         ciudad: form.ciudad, telefono: form.telefono, color: form.color,
       }).eq('id', modal.id)
+      err = error
+    }
+    if (err) {
+      // Common: table doesn't exist yet (migration not run)
+      const msg = err.code === '42P01'
+        ? 'La tabla de consultorios no existe. Ejecuta la migración 006_clinics.sql en Supabase SQL Editor.'
+        : err.message
+      setClinicErr(msg)
+      return
     }
     setModal(null)
     fetchClinics()
@@ -159,6 +172,12 @@ function ClinicsSection({ doctorId }) {
         </div>
 
         <div className="p-6">
+          {clinicErr && (
+            <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 leading-relaxed">
+              ⚠ {clinicErr}
+            </div>
+          )}
+
           {loading ? (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
