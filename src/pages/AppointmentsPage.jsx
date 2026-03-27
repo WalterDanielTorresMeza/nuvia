@@ -9,7 +9,7 @@ import NewAppointmentModal from '../components/appointments/NewAppointmentModal'
 import {
   Plus, Loader2, Calendar, X,
   ChevronRight, ChevronLeft, LayoutList, CalendarDays,
-  Building2,
+  Building2, Download,
 } from 'lucide-react'
 import { FaStethoscope, FaVideo, FaTriangleExclamation } from 'react-icons/fa6'
 import { cn } from '../utils'
@@ -48,6 +48,49 @@ const FILTERS = [
 ]
 const WEEK_DAYS  = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom']
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+/* ─── ICS calendar export ─── */
+function generateICS(appointments, clinics = []) {
+  const pad = n => String(n).padStart(2, '0')
+  const toICS = date => {
+    const d = new Date(date)
+    return `${d.getUTCFullYear()}${pad(d.getUTCMonth()+1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`
+  }
+  const events = appointments.map(a => {
+    const endDt = new Date(new Date(a.fecha_hora).getTime() + (a.duracion_min || 30) * 60000)
+    const patient = a.patients ? `${a.patients.nombre} ${a.patients.apellidos}` : 'Paciente'
+    const tipo = { presencial:'Presencial', videoconsulta:'Videoconsulta', urgencia:'Urgencia' }[a.tipo] || a.tipo
+    const clinic = clinics.find(c => c.id === a.clinic_id)
+    return [
+      'BEGIN:VEVENT',
+      `UID:nuvia-${a.id}@nuvia.app`,
+      `DTSTART:${toICS(a.fecha_hora)}`,
+      `DTEND:${toICS(endDt)}`,
+      `SUMMARY:${tipo} — ${patient}`,
+      a.motivo ? `DESCRIPTION:${a.motivo.replace(/\n/g,'\\n')}` : null,
+      clinic ? `LOCATION:${clinic.nombre}` : null,
+      `STATUS:${a.estado === 'confirmada' ? 'CONFIRMED' : 'TENTATIVE'}`,
+      'END:VEVENT',
+    ].filter(Boolean).join('\r\n')
+  }).join('\r\n')
+
+  const ics = [
+    'BEGIN:VCALENDAR','VERSION:2.0',
+    'PRODID:-//Nuvia//Medical Calendar//ES',
+    'CALSCALE:GREGORIAN','METHOD:PUBLISH',
+    'X-WR-CALNAME:Agenda Médica — Nuvia',
+    events,
+    'END:VCALENDAR',
+  ].join('\r\n')
+
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href = url
+  a.download = `agenda_nuvia_${new Date().toISOString().slice(0,10)}.ics`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 
 /* ─── Month Calendar ─── */
@@ -301,6 +344,11 @@ export default function AppointmentsPage() {
               <CalendarDays className="w-3.5 h-3.5" /> Calendario
             </button>
           </div>
+          <button onClick={() => generateICS(appointments, clinics)}
+            title="Descargar agenda como .ics para importar en Google Calendar o Apple Calendar"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-600 rounded-2xl text-sm font-medium transition-colors">
+            <Download className="w-4 h-4" /> Exportar .ics
+          </button>
           <button onClick={() => setShowModal(true)}
             className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-semibold text-sm transition-colors shadow-sm">
             <Plus className="w-4 h-4" /> Nueva cita

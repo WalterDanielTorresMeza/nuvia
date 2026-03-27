@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { usePatientsStore } from '../store/patientsStore'
+import { useClinicStore } from '../store/clinicStore'
 import {
   Plus, Loader2, X, AlertTriangle, Receipt,
   DollarSign, Clock, TrendingUp, Download, FileText,
@@ -38,14 +39,14 @@ const ESTADO_STYLE = {
 const METODOS = ['Efectivo', 'Tarjeta débito', 'Tarjeta crédito', 'Transferencia', 'Cheque']
 
 /* ══ Nuevo cobro modal ══ */
-function NuevoCobro({ patients, onClose, onSaved }) {
+function NuevoCobro({ patients, clinics = [], onClose, onSaved }) {
   const { doctor } = useAuthStore()
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
   const [form, setForm] = useState({
     patient_id: '', concepto: '', total: '', estado: 'pendiente',
     metodo_pago: 'Efectivo', requiere_factura: false,
-    rfc_receptor: '', razon_social: '',
+    rfc_receptor: '', razon_social: '', clinic_id: '',
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -87,6 +88,7 @@ function NuevoCobro({ patients, onClose, onSaved }) {
       razon_social: form.razon_social.trim() || null,
       requiere_factura: form.requiere_factura,
     }
+    if (form.clinic_id) payload.clinic_id = form.clinic_id
 
     const { error: dbErr } = await supabase.from('invoices').insert([payload])
     setSaving(false)
@@ -121,6 +123,28 @@ function NuevoCobro({ patients, onClose, onSaved }) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Consultorio */}
+          {clinics.length > 0 && (
+            <div>
+              <label className="label">Consultorio</label>
+              <div className="flex gap-2 flex-wrap">
+                <button type="button" onClick={() => set('clinic_id', '')}
+                  className={cn('px-3 py-1.5 text-xs rounded-xl font-semibold border transition-all',
+                    !form.clinic_id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50')}>
+                  Sin asignar
+                </button>
+                {clinics.map(c => (
+                  <button key={c.id} type="button" onClick={() => set('clinic_id', c.id)}
+                    className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl font-semibold border transition-all',
+                      form.clinic_id === c.id ? 'text-white border-transparent' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50')}
+                    style={form.clinic_id === c.id ? { background: c.color } : {}}>
+                    <span className="w-2 h-2 rounded-full" style={{ background: c.color }} />{c.nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Paciente */}
           <div>
             <label className="label">Paciente *</label>
@@ -336,6 +360,7 @@ function PreFactura({ invoice, doctorData, onClose }) {
 export default function BillingPage() {
   const { doctor }                  = useAuthStore()
   const { patients, fetchPatients } = usePatientsStore()
+  const { clinics }                 = useClinicStore()
   const [invoices, setInvoices]     = useState([])
   const [loading, setLoading]       = useState(true)
   const [showModal, setShowModal]   = useState(false)
@@ -408,6 +433,7 @@ export default function BillingPage() {
     { label: 'Folio',            value: r => r.folio },
     { label: 'Fecha',            value: r => new Date(r.fecha).toLocaleDateString('es-MX') },
     { label: 'Paciente',         value: r => `${r.patients?.nombre} ${r.patients?.apellidos}` },
+    { label: 'Consultorio',      value: r => clinics.find(c => c.id === r.clinic_id)?.nombre || '' },
     { label: 'RFC Receptor',     value: r => r.rfc_receptor || r.patients?.rfc || '' },
     { label: 'Razón Social',     value: r => r.razon_social || r.patients?.razon_social_factura || '' },
     { label: 'Concepto',         value: r => r.concepto },
@@ -422,7 +448,7 @@ export default function BillingPage() {
   ]
 
   const allCols = [
-    ...contadorCols.slice(0, 10),
+    ...contadorCols.slice(0, 11),
     { label: 'Requiere Factura', value: r => r.requiere_factura ? 'Sí' : 'No' },
   ]
 
@@ -531,7 +557,7 @@ export default function BillingPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
-                  {['Folio','Paciente','Concepto','Monto','Método','Fecha','Factura','Estado',''].map(h => (
+                  {['Folio','Paciente','Consultorio','Concepto','Monto','Método','Fecha','Factura','Estado',''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -549,6 +575,16 @@ export default function BillingPage() {
                         {(inv.rfc_receptor || inv.patients?.rfc) && (
                           <p className="text-xs text-slate-400 font-mono">{inv.rfc_receptor || inv.patients?.rfc}</p>
                         )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {(() => {
+                          const c = clinics.find(cl => cl.id === inv.clinic_id)
+                          return c
+                            ? <span className="flex items-center gap-1.5 text-xs font-medium text-slate-700 whitespace-nowrap">
+                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.color }} />{c.nombre}
+                              </span>
+                            : <span className="text-xs text-slate-300">—</span>
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-slate-600 max-w-[160px] truncate">{inv.concepto || '—'}</td>
                       <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{fmt(inv.total)}</td>
@@ -593,7 +629,7 @@ export default function BillingPage() {
 
       {/* Modals */}
       {showModal && (
-        <NuevoCobro patients={patients} onClose={() => setShowModal(false)} onSaved={fetchInvoices} />
+        <NuevoCobro patients={patients} clinics={clinics} onClose={() => setShowModal(false)} onSaved={fetchInvoices} />
       )}
       {preFactura && (
         <PreFactura invoice={preFactura} doctorData={doctorData} onClose={() => setPreFactura(null)} />

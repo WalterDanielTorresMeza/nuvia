@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { calcEdad } from '../utils'
+import { useClinicStore } from '../store/clinicStore'
 import {
   Download, Loader2, Users, Calendar, ClipboardList,
   DollarSign, Search, FileText, Filter,
@@ -135,7 +136,7 @@ const PRESETS = [
 ]
 
 /* ── Per-type client-side filter definitions ── */
-function FilterPanel({ tipo, filters, setFilters }) {
+function FilterPanel({ tipo, filters, setFilters, clinics = [] }) {
   const s = (k, v) => setFilters(f => ({ ...f, [k]: v }))
 
   if (tipo === 'pacientes') return (
@@ -213,6 +214,15 @@ function FilterPanel({ tipo, filters, setFilters }) {
           <option value="no_asistio">No asistió</option>
         </select>
       </div>
+      {clinics.length > 0 && (
+        <div>
+          <label className="text-xs font-semibold text-slate-500 block mb-1">Consultorio</label>
+          <select className="input text-sm py-2 w-full" value={filters.clinic_id || ''} onChange={e => s('clinic_id', e.target.value)}>
+            <option value="">Todos</option>
+            {clinics.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+        </div>
+      )}
     </div>
   )
 
@@ -246,6 +256,15 @@ function FilterPanel({ tipo, filters, setFilters }) {
           <option value="cancelada">Cancelada</option>
         </select>
       </div>
+      {clinics.length > 0 && (
+        <div>
+          <label className="text-xs font-semibold text-slate-500 block mb-1">Consultorio</label>
+          <select className="input text-sm py-2 w-full" value={filters.clinic_id || ''} onChange={e => s('clinic_id', e.target.value)}>
+            <option value="">Todos</option>
+            {clinics.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+        </div>
+      )}
     </div>
   )
 
@@ -280,8 +299,9 @@ function applyFilters(tipo, rows, filters) {
   if (tipo === 'citas') {
     if (q)
       result = result.filter(r => `${r.patients?.nombre || ''} ${r.patients?.apellidos || ''}`.toLowerCase().includes(q))
-    if (filters.tipo)   result = result.filter(r => r.tipo   === filters.tipo)
-    if (filters.estado) result = result.filter(r => r.estado === filters.estado)
+    if (filters.tipo)      result = result.filter(r => r.tipo      === filters.tipo)
+    if (filters.estado)    result = result.filter(r => r.estado    === filters.estado)
+    if (filters.clinic_id) result = result.filter(r => r.clinic_id === filters.clinic_id)
   }
 
   if (tipo === 'consultas' && q)
@@ -290,7 +310,8 @@ function applyFilters(tipo, rows, filters) {
   if (tipo === 'facturacion') {
     if (q)
       result = result.filter(r => `${r.patients?.nombre || ''} ${r.patients?.apellidos || ''}`.toLowerCase().includes(q))
-    if (filters.estado) result = result.filter(r => r.estado === filters.estado)
+    if (filters.estado)    result = result.filter(r => r.estado    === filters.estado)
+    if (filters.clinic_id) result = result.filter(r => r.clinic_id === filters.clinic_id)
   }
 
   return result
@@ -298,6 +319,7 @@ function applyFilters(tipo, rows, filters) {
 
 /* ══════════════════════════════════════════════ */
 export default function ReportsPage() {
+  const { clinics }           = useClinicStore()
   const [tipo,    setTipo]    = useState('pacientes')
   const [desde,   setDesde]   = useState(monthStartStr())
   const [hasta,   setHasta]   = useState(todayStr())
@@ -358,7 +380,16 @@ export default function ReportsPage() {
     }
   }
 
-  const cols         = COLUMNS[tipo]
+  const cols = useMemo(() => {
+    const base = COLUMNS[tipo]
+    if ((tipo === 'citas' || tipo === 'facturacion') && clinics.length > 0) {
+      return [...base, {
+        label: 'Consultorio',
+        get: r => clinics.find(c => c.id === r.clinic_id)?.nombre || '—',
+      }]
+    }
+    return base
+  }, [tipo, clinics])
   const hasRows      = rows !== null
   const filtered     = useMemo(() => rows ? applyFilters(tipo, rows, filters) : [], [rows, tipo, filters])
   const hasActiveFilter = Object.values(filters).some(v => v)
@@ -447,7 +478,7 @@ export default function ReportsPage() {
                 <button onClick={resetFilters} className="text-xs text-primary-600 hover:text-primary-700 ml-auto">Limpiar filtros</button>
               )}
             </div>
-            <FilterPanel tipo={tipo} filters={filters} setFilters={setFilters} />
+            <FilterPanel tipo={tipo} filters={filters} setFilters={setFilters} clinics={clinics} />
           </div>
         )}
 
