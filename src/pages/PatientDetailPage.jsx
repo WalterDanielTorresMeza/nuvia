@@ -21,7 +21,7 @@ import {
 import { calcEdad, calcIMC, clasificarIMC, formatFecha, formatFechaHora, cn } from '../utils'
 import EditPatientModal from '../components/patients/EditPatientModal'
 import ConsultationModal from '../components/patients/ConsultationModal'
-import { NewAppointmentModal } from './AppointmentsPage'
+import NewAppointmentModal from '../components/appointments/NewAppointmentModal'
 
 /* ─── mini helpers ──────────────────────────────────────────────── */
 function Card({ children, className = '' }) {

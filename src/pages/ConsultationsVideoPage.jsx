@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { FaDroplet, FaMars, FaVenus } from 'react-icons/fa6'
 import { cn } from '../utils'
-import { NewAppointmentModal } from './AppointmentsPage'
+import NewAppointmentModal from '../components/appointments/NewAppointmentModal'
 import { usePatientsStore } from '../store/patientsStore'
 import { useAuthStore } from '../store/authStore'
 import { useClinicStore } from '../store/clinicStore'
