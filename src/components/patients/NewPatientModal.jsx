@@ -2,17 +2,21 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePatientsStore } from '../../store/patientsStore'
 import { useAuthStore } from '../../store/authStore'
+import { useClinicStore } from '../../store/clinicStore'
 import { X, Loader2 } from 'lucide-react'
+import { cn } from '../../utils'
 
 export default function NewPatientModal({ onClose }) {
-  const { createPatient } = usePatientsStore()
-  const { doctor } = useAuthStore()
-  const navigate = useNavigate()
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const { createPatient }                        = usePatientsStore()
+  const { doctor }                               = useAuthStore()
+  const { clinics, activeClinic }                = useClinicStore()
+  const navigate                                 = useNavigate()
+  const [loading, setLoading]                    = useState(false)
+  const [error, setError]                        = useState('')
   const [form, setForm] = useState({
     nombre: '', apellidos: '', fecha_nacimiento: '', curp: '',
-    sexo: '', tipo_sangre: '', telefono: '', email: '', direccion: ''
+    sexo: '', tipo_sangre: '', telefono: '', email: '', direccion: '',
+    clinic_id: activeClinic?.id || '',
   })
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -21,7 +25,7 @@ export default function NewPatientModal({ onClose }) {
     e.preventDefault()
     if (!form.nombre || !form.apellidos) { setError('Nombre y apellidos son requeridos'); return }
     setLoading(true)
-    const { data, error } = await createPatient({ ...form, doctor_id: doctor?.id })
+    const { data, error } = await createPatient({ ...form, doctor_id: doctor?.id, clinic_id: form.clinic_id || null })
     setLoading(false)
     if (error) { setError(error); return }
     onClose()
@@ -41,6 +45,28 @@ export default function NewPatientModal({ onClose }) {
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+          )}
+
+          {/* Consultorio (solo si hay consultorios configurados) */}
+          {clinics.length > 0 && (
+            <div>
+              <label className="label">Consultorio</label>
+              <div className="flex gap-2 flex-wrap">
+                <button type="button" onClick={() => set('clinic_id', '')}
+                  className={cn('px-3 py-1.5 text-xs rounded-xl font-semibold border transition-all',
+                    !form.clinic_id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50')}>
+                  Sin asignar
+                </button>
+                {clinics.map(c => (
+                  <button key={c.id} type="button" onClick={() => set('clinic_id', c.id)}
+                    className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl font-semibold border transition-all',
+                      form.clinic_id === c.id ? 'text-white border-transparent' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50')}
+                    style={form.clinic_id === c.id ? { background: c.color } : {}}>
+                    <span className="w-2 h-2 rounded-full" style={{ background: c.color }} />{c.nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           <div className="grid grid-cols-2 gap-4">

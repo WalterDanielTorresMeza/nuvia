@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePatientsStore } from '../store/patientsStore'
-import { Plus, Search, Loader2, SlidersHorizontal, Users, X } from 'lucide-react'
+import { useAuthStore } from '../store/authStore'
+import { useClinicStore } from '../store/clinicStore'
+import { Plus, Search, Loader2, SlidersHorizontal, Users, X, Building2 } from 'lucide-react'
 import { FaUserDoctor, FaMars, FaVenus, FaDroplet } from 'react-icons/fa6'
 import { calcEdad, formatFecha, cn } from '../utils'
 import NewPatientModal from '../components/patients/NewPatientModal'
@@ -154,14 +156,19 @@ function PatientCard({ patient, onClick }) {
 
 /* ══════════════════════════════════════════════ */
 export default function PatientsPage() {
-  const { patients, fetchPatients, loading } = usePatientsStore()
-  const [search, setSearch]       = useState('')
-  const [filterSex, setFilterSex] = useState('') // '' | 'M' | 'F'
-  const [showModal, setShowModal] = useState(false)
+  const { patients, fetchPatients, loading }             = usePatientsStore()
+  const { doctor }                                       = useAuthStore()
+  const { clinics, activeClinic, fetchClinics, setActiveClinic } = useClinicStore()
+  const [search, setSearch]           = useState('')
+  const [filterSex, setFilterSex]     = useState('')
+  const [showModal, setShowModal]     = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const navigate = useNavigate()
 
-  useEffect(() => { fetchPatients() }, [])
+  useEffect(() => {
+    fetchPatients()
+    if (doctor?.id) fetchClinics(doctor.id)
+  }, [doctor?.id])
 
   const filtered = patients.filter(p => {
     const q = search.toLowerCase()
@@ -171,8 +178,9 @@ export default function PatientsPage() {
       p.curp?.toLowerCase().includes(q) ||
       p.telefono?.includes(q) ||
       p.email?.toLowerCase().includes(q)
-    const matchSex = !filterSex || p.sexo === filterSex
-    return matchSearch && matchSex
+    const matchSex    = !filterSex      || p.sexo === filterSex
+    const matchClinic = !activeClinic   || p.clinic_id === activeClinic.id
+    return matchSearch && matchSex && matchClinic
   })
 
   const totalM = patients.filter(p => p.sexo === 'M').length
@@ -201,6 +209,32 @@ export default function PatientsPage() {
           <StatPill icon={Users} label="Total pacientes" value={patients.length} color="text-primary-600" />
           <StatPill icon={FaMars} label="Masculino" value={totalM} color="text-blue-500" />
           <StatPill icon={FaVenus} label="Femenino" value={totalF} color="text-pink-500" />
+        </div>
+      )}
+
+      {/* ── Clinic filter ── */}
+      {clinics.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <Building2 className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+          <button onClick={() => setActiveClinic(null)}
+            className={cn('px-3 py-1.5 text-xs rounded-xl font-semibold border transition-all',
+              !activeClinic ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50')}>
+            Todos
+          </button>
+          {clinics.map(c => (
+            <button key={c.id} onClick={() => setActiveClinic(activeClinic?.id === c.id ? null : c)}
+              className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl font-semibold border transition-all',
+                activeClinic?.id === c.id ? 'text-white border-transparent' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50')}
+              style={activeClinic?.id === c.id ? { background: c.color } : {}}>
+              <span className="w-2 h-2 rounded-full" style={{ background: c.color }} />
+              {c.nombre}
+              {activeClinic?.id !== c.id && (
+                <span className="ml-1 text-slate-400 font-normal">
+                  {patients.filter(p => p.clinic_id === c.id).length}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
       )}
 
