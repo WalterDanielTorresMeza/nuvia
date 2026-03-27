@@ -5,7 +5,7 @@ import { usePatientsStore } from '../store/patientsStore'
 import {
   Plus, Loader2, X, AlertTriangle, Receipt,
   DollarSign, Clock, TrendingUp, Download, FileText,
-  Check, Printer,
+  Printer,
 } from 'lucide-react'
 import { cn } from '../utils'
 
@@ -93,7 +93,7 @@ function NuevoCobro({ patients, onClose, onSaved }) {
     if (dbErr) {
       // Si faltan columnas de la migración, reintenta con campos básicos
       if (dbErr.message.includes('requiere_factura') || dbErr.message.includes('metodo_pago')) {
-        const { concepto, total, estado, patient_id, doctor_id, folio, subtotal, iva, rfc_receptor, razon_social } = payload
+        const { concepto, estado, patient_id, doctor_id, folio, subtotal, iva, rfc_receptor, razon_social } = payload
         const { error: e2 } = await supabase.from('invoices').insert([{
           patient_id, doctor_id, folio, subtotal, iva, total: monto, concepto, estado, rfc_receptor, razon_social
         }])
@@ -352,7 +352,7 @@ export default function BillingPage() {
     try {
       const { data } = await supabase
         .from('invoices')
-        .select('*, patients(nombre, apellidos, rfc, razon_social_factura)')
+        .select('*, patients(nombre, apellidos)')
         .order('fecha', { ascending: false })
       setInvoices(data || [])
     } finally {
@@ -361,12 +361,19 @@ export default function BillingPage() {
   }
 
   const fetchDoctorData = async () => {
-    const { data } = await supabase
-      .from('doctors')
-      .select('nombre, apellidos, especialidad, rfc, razon_social_fiscal, regimen_fiscal, direccion_fiscal, cp_fiscal')
-      .eq('id', doctor.id)
-      .single()
-    setDoctorData(data)
+    try {
+      const { data } = await supabase
+        .from('doctors')
+        .select('nombre, apellidos, especialidad, rfc, razon_social_fiscal, regimen_fiscal, direccion_fiscal, cp_fiscal')
+        .eq('id', doctor.id)
+        .single()
+      setDoctorData(data)
+    } catch {
+      // Columnas fiscales aún no existen — carga solo los básicos
+      const { data } = await supabase
+        .from('doctors').select('nombre, apellidos, especialidad').eq('id', doctor.id).single()
+      setDoctorData(data)
+    }
   }
 
   const updateEstado = async (id, estado) => {
@@ -408,9 +415,9 @@ export default function BillingPage() {
     { label: 'IVA',              value: r => r.iva || 0 },
     { label: 'Total',            value: r => r.total },
     { label: 'Método de pago',   value: r => r.metodo_pago || 'Efectivo' },
-    { label: 'RFC Emisor',       value: r => doctorData?.rfc || '' },
-    { label: 'Razón Social Emisor', value: r => doctorData?.razon_social_fiscal || `Dr. ${doctorData?.nombre} ${doctorData?.apellidos}` },
-    { label: 'Régimen Fiscal',   value: r => doctorData?.regimen_fiscal || '' },
+    { label: 'RFC Emisor',       value: () => doctorData?.rfc || '' },
+    { label: 'Razón Social Emisor', value: () => doctorData?.razon_social_fiscal || `Dr. ${doctorData?.nombre} ${doctorData?.apellidos}` },
+    { label: 'Régimen Fiscal',   value: () => doctorData?.regimen_fiscal || '' },
     { label: 'Estado',           value: r => ESTADO_STYLE[r.estado]?.label || r.estado },
   ]
 

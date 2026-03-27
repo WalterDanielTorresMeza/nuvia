@@ -29,19 +29,27 @@ export default function NewPatientModal({ onClose }) {
     e.preventDefault()
     if (!form.nombre || !form.apellidos) { setError('Nombre y apellidos son requeridos'); return }
     setLoading(true)
-    const payload = { ...form, doctor_id: doctor?.id }
-    if (form.clinic_id) payload.clinic_id = form.clinic_id
-    else delete payload.clinic_id
-    let { data, error } = await createPatient(payload)
-    // Si clinic_id no existe en la DB aún, reintenta sin él
-    if (error?.includes('clinic_id')) {
-      delete payload.clinic_id
-      ;({ data, error } = await createPatient(payload))
+    setError('')
+    try {
+      const payload = { ...form, doctor_id: doctor?.id }
+      if (!form.clinic_id) delete payload.clinic_id
+
+      let { data, error } = await createPatient(payload)
+
+      // Si clinic_id no existe en la DB, reintenta sin él
+      if (error?.includes('clinic_id') || error?.includes('clinic')) {
+        delete payload.clinic_id
+        ;({ data, error } = await createPatient(payload))
+      }
+
+      if (error) { setError(error); return }
+      onClose()
+      navigate(`/pacientes/${data.id}`)
+    } catch (err) {
+      setError('Error inesperado. Intenta de nuevo.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-    if (error) { setError(error); return }
-    onClose()
-    navigate(`/pacientes/${data.id}`)
   }
 
   return (
