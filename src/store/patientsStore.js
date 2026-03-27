@@ -44,6 +44,13 @@ export const usePatientsStore = create((set, get) => ({
     return data
   },
 
+  deletePatient: async (id) => {
+    const { error } = await supabase.from('patients').update({ activo: false }).eq('id', id)
+    if (error) return { error: error.message }
+    set(state => ({ patients: state.patients.filter(p => p.id !== id) }))
+    return { ok: true }
+  },
+
   createPatient: async (patientData) => {
     const { data, error } = await supabase
       .from('patients')

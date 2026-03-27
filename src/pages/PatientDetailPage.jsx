@@ -142,12 +142,14 @@ function VitalChip({ icon: Icon, label, value, unit, alert }) {
 export default function PatientDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { fetchPatient, currentPatient, loading, updateMedication } = usePatientsStore()
+  const { fetchPatient, currentPatient, loading, updateMedication, deletePatient } = usePatientsStore()
   const { doctor } = useAuthStore()
 
   const [showEdit, setShowEdit]             = useState(false)
   const [openConsult, setOpenConsult]       = useState(null)
   const [showNewAppt, setShowNewAppt]       = useState(false)
+  const [confirmDelete, setConfirmDelete]   = useState(false)
+  const [deleting, setDeleting]             = useState(false)
   const [problems, setProblems]             = useState([])
   const [notes, setNotes]                   = useState([])
   const [files, setFiles]                   = useState([])
@@ -257,6 +259,11 @@ export default function PatientDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={() => setConfirmDelete(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-500 bg-red-50 hover:bg-red-100 rounded-xl transition-colors">
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Eliminar</span>
+            </button>
             <button onClick={() => setShowEdit(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
               <Edit2 className="w-3.5 h-3.5" />
@@ -612,6 +619,38 @@ export default function PatientDetailPage() {
       </div>
 
       {/* ── Modals ──────────────────────────────────────────────── */}
+      {/* ── Confirmar eliminación ── */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6 text-red-500" />
+            </div>
+            <h3 className="text-base font-bold text-slate-800 text-center">¿Eliminar paciente?</h3>
+            <p className="text-sm text-slate-500 text-center mt-2">
+              Se eliminará a <span className="font-semibold text-slate-700">{p.nombre} {p.apellidos}</span> de la lista de pacientes. Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setConfirmDelete(false)}
+                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors">
+                Cancelar
+              </button>
+              <button
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true)
+                  await deletePatient(p.id)
+                  navigate('/pacientes')
+                }}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white rounded-xl text-sm font-semibold transition-colors">
+                {deleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {deleting ? 'Eliminando...' : 'Sí, eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showEdit && <EditPatientModal patient={p} onClose={() => setShowEdit(false)} />}
       {showNewAppt && (
         <NewAppointmentModal

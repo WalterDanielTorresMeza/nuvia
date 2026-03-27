@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePatientsStore } from '../../store/patientsStore'
 import { useAuthStore } from '../../store/authStore'
@@ -9,7 +9,11 @@ import { cn } from '../../utils'
 export default function NewPatientModal({ onClose }) {
   const { createPatient }                        = usePatientsStore()
   const { doctor }                               = useAuthStore()
-  const { clinics, activeClinic }                = useClinicStore()
+  const { clinics, activeClinic, fetchClinics }  = useClinicStore()
+
+  useEffect(() => {
+    if (clinics.length === 0 && doctor?.id) fetchClinics(doctor.id)
+  }, [doctor?.id])
   const navigate                                 = useNavigate()
   const [loading, setLoading]                    = useState(false)
   const [error, setError]                        = useState('')
@@ -25,7 +29,15 @@ export default function NewPatientModal({ onClose }) {
     e.preventDefault()
     if (!form.nombre || !form.apellidos) { setError('Nombre y apellidos son requeridos'); return }
     setLoading(true)
-    const { data, error } = await createPatient({ ...form, doctor_id: doctor?.id, clinic_id: form.clinic_id || null })
+    const payload = { ...form, doctor_id: doctor?.id }
+    if (form.clinic_id) payload.clinic_id = form.clinic_id
+    else delete payload.clinic_id
+    let { data, error } = await createPatient(payload)
+    // Si clinic_id no existe en la DB aún, reintenta sin él
+    if (error?.includes('clinic_id')) {
+      delete payload.clinic_id
+      ;({ data, error } = await createPatient(payload))
+    }
     setLoading(false)
     if (error) { setError(error); return }
     onClose()
