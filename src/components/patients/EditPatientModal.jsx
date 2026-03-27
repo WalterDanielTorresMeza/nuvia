@@ -16,6 +16,8 @@ export default function EditPatientModal({ patient, onClose }) {
     telefono: patient.telefono || '',
     email: patient.email || '',
     direccion: patient.direccion || '',
+    rfc: patient.rfc || '',
+    razon_social_factura: patient.razon_social_factura || '',
   })
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -86,6 +88,24 @@ export default function EditPatientModal({ patient, onClose }) {
               <input className="input" value={form.direccion} onChange={e => set('direccion', e.target.value)} />
             </div>
           </div>
+
+          {/* Datos fiscales */}
+          <div className="pt-2 border-t border-slate-100">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Datos para factura (opcional)</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label">RFC del paciente</label>
+                <input className="input uppercase" maxLength={13} placeholder="XAXX010101000"
+                  value={form.rfc} onChange={e => set('rfc', e.target.value.toUpperCase())} />
+              </div>
+              <div>
+                <label className="label">Razón social / Nombre fiscal</label>
+                <input className="input" placeholder="Como aparece en su constancia"
+                  value={form.razon_social_factura} onChange={e => set('razon_social_factura', e.target.value)} />
+              </div>
+            </div>
+          </div>
+
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
             <button type="submit" disabled={loading} className="btn-primary flex-1 justify-center">

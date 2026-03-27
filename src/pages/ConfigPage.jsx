@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore'
 import {
   Loader2, Save, Check, User, Stethoscope, Phone, Mail,
   Hash, Shield, MapPin, Building2, Plus, Pencil, Trash2,
-  Star, X, ChevronRight,
+  Star, X, FileText,
 } from 'lucide-react'
 
 /* ── Preset colors for clinics ── */
@@ -270,6 +270,107 @@ function ClinicsSection({ doctorId }) {
   )
 }
 
+/* ══ Sección datos fiscales ══════════════════════════════════════ */
+const REGIMENES = [
+  '605 - Sueldos y Salarios e Ingresos Asimilados a Salarios',
+  '606 - Arrendamiento',
+  '612 - Personas Físicas con Actividades Empresariales y Profesionales',
+  '621 - Incorporación Fiscal',
+  '625 - Régimen de las Actividades Empresariales con ingresos por Comisión',
+  '626 - Régimen Simplificado de Confianza',
+]
+
+function FiscalSection({ doctorId }) {
+  const [form, setForm]     = useState({ rfc: '', razon_social_fiscal: '', regimen_fiscal: '', direccion_fiscal: '', cp_fiscal: '' })
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved]   = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!doctorId) return
+    supabase.from('doctors')
+      .select('rfc, razon_social_fiscal, regimen_fiscal, direccion_fiscal, cp_fiscal')
+      .eq('id', doctorId).single()
+      .then(({ data }) => {
+        if (data) setForm({
+          rfc:               data.rfc               || '',
+          razon_social_fiscal: data.razon_social_fiscal || '',
+          regimen_fiscal:    data.regimen_fiscal    || '',
+          direccion_fiscal:  data.direccion_fiscal  || '',
+          cp_fiscal:         data.cp_fiscal         || '',
+        })
+        setLoaded(true)
+      })
+  }, [doctorId])
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    await supabase.from('doctors').update({
+      rfc:               form.rfc.trim().toUpperCase() || null,
+      razon_social_fiscal: form.razon_social_fiscal.trim() || null,
+      regimen_fiscal:    form.regimen_fiscal || null,
+      direccion_fiscal:  form.direccion_fiscal.trim() || null,
+      cp_fiscal:         form.cp_fiscal.trim() || null,
+    }).eq('id', doctorId)
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 3000)
+  }
+
+  if (!loaded) return null
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+        <FileText className="w-4 h-4 text-slate-400" />
+        <h2 className="font-semibold text-slate-700">Datos fiscales</h2>
+        <span className="text-xs text-slate-400 ml-1">Para pre-facturas y reporte al contador</span>
+      </div>
+      <form onSubmit={handleSave} className="p-6 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="label">RFC del médico</label>
+            <input className="input uppercase" maxLength={13} placeholder="XAXX010101000"
+              value={form.rfc} onChange={e => set('rfc', e.target.value.toUpperCase())} />
+          </div>
+          <div>
+            <label className="label">Razón social / Nombre fiscal</label>
+            <input className="input" placeholder="Como aparece en tu constancia fiscal"
+              value={form.razon_social_fiscal} onChange={e => set('razon_social_fiscal', e.target.value)} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Régimen fiscal</label>
+            <select className="input" value={form.regimen_fiscal} onChange={e => set('regimen_fiscal', e.target.value)}>
+              <option value="">Seleccionar régimen...</option>
+              {REGIMENES.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Dirección fiscal</label>
+            <input className="input" placeholder="Calle, colonia, ciudad"
+              value={form.direccion_fiscal} onChange={e => set('direccion_fiscal', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">CP fiscal</label>
+            <input className="input" maxLength={5} placeholder="06600"
+              value={form.cp_fiscal} onChange={e => set('cp_fiscal', e.target.value)} />
+          </div>
+        </div>
+        <div className="flex justify-end pt-1">
+          <button type="submit" disabled={saving}
+            className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+            {saving ? 'Guardando...' : saved ? '¡Guardado!' : 'Guardar datos fiscales'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 /* ══════════════════════════════════════════ */
 export default function ConfigPage() {
   const { doctor, fetchDoctor } = useAuthStore()
@@ -378,6 +479,9 @@ export default function ConfigPage() {
 
       {/* ── Clinics ── */}
       {doctor?.id && <ClinicsSection doctorId={doctor.id} />}
+
+      {/* ── Fiscal data ── */}
+      {doctor?.id && <FiscalSection doctorId={doctor.id} />}
 
       {/* ── Password ── */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
