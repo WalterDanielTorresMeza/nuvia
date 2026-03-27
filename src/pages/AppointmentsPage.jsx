@@ -207,7 +207,7 @@ export default function AppointmentsPage() {
 
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter]       = useState('todas')
-  const [view, setView]           = useState('lista')
+  const [view, setView]           = useState('calendario')
 
   const now = new Date()
   const [calYear,    setCalYear]    = useState(now.getFullYear())
@@ -448,7 +448,7 @@ export default function AppointmentsPage() {
 export function NewAppointmentModal({
   patients, doctorId, existingAppointments = [],
   clinics = [], activeClinic = null,
-  preselectedPatientId = null, onClose, onSaved,
+  preselectedPatientId = null, defaultTipo = 'presencial', onClose, onSaved,
 }) {
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
@@ -457,7 +457,7 @@ export function NewAppointmentModal({
     patient_id:   preselectedPatientId || '',
     fecha_hora:   '',
     duracion_min: '30',
-    tipo:         'presencial',
+    tipo:         defaultTipo,
     estado:       'programada',
     motivo:       '',
     notas:        '',

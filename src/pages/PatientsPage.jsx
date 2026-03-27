@@ -53,7 +53,7 @@ function StatPill({ icon: Icon, label, value, color = 'text-slate-700', bg = 'bg
 }
 
 /* ── Patient card ── */
-function PatientCard({ patient, onClick }) {
+function PatientCard({ patient, clinic, onClick }) {
   const edad = calcEdad(patient.fecha_nacimiento)
   const blood = BLOOD_COLORS[patient.tipo_sangre]
   const grad = avatarGradient(patient.nombre)
@@ -143,10 +143,19 @@ function PatientCard({ patient, onClick }) {
 
       {/* Footer */}
       <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-        <span className="text-xs text-slate-400">
-          Registrado {formatFecha(patient.created_at)}
-        </span>
-        <span className="text-xs font-semibold text-primary-600 group-hover:text-primary-700 transition-colors">
+        <div className="flex items-center gap-2 min-w-0">
+          {clinic ? (
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: clinic.color }} />
+              <span className="text-xs text-slate-500 truncate">{clinic.nombre}</span>
+            </div>
+          ) : (
+            <span className="text-xs text-slate-400">
+              Registrado {formatFecha(patient.created_at)}
+            </span>
+          )}
+        </div>
+        <span className="text-xs font-semibold text-primary-600 group-hover:text-primary-700 transition-colors flex-shrink-0">
           Ver expediente →
         </span>
       </div>
@@ -326,6 +335,7 @@ export default function PatientsPage() {
               <PatientCard
                 key={patient.id}
                 patient={patient}
+                clinic={clinics.find(c => c.id === patient.clinic_id)}
                 onClick={() => navigate(`/pacientes/${patient.id}`)}
               />
             ))}

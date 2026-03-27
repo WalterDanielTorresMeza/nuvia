@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import { useClinicStore } from '../store/clinicStore'
 import { supabase } from '../lib/supabase'
 import {
   Users, Calendar, ClipboardList, Video,
-  ArrowRight, Plus, Clock, TrendingUp, DollarSign,
+  ArrowRight, Plus, Clock, TrendingUp, DollarSign, Building2,
 } from 'lucide-react'
+import { cn } from '../utils'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
@@ -50,6 +52,7 @@ const ESTADO_STYLE = {
 export default function DashboardPage() {
   const navigate   = useNavigate()
   const { doctor } = useAuthStore()
+  const { clinics, activeClinic, setActiveClinic } = useClinicStore()
   const [stats, setStats]           = useState({ pacientes: 0, citasHoy: 0, consultasMes: 0, videoHoy: 0, ingresosMes: 0 })
   const [citasHoy, setCitasHoy]     = useState([])
   const [recentPats, setRecentPats] = useState([])
@@ -57,7 +60,10 @@ export default function DashboardPage() {
   const [chartData, setChartData]   = useState([])
   const [loading, setLoading]       = useState(true)
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => {
+    fetchAll()
+    if (clinics.length === 0 && doctor?.id) useClinicStore.getState().fetchClinics(doctor.id)
+  }, [doctor?.id])
 
   const fetchAll = async () => {
     try {
@@ -170,6 +176,27 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* ── Clinic filter ── */}
+      {clinics.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <Building2 className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+          <button onClick={() => setActiveClinic(null)}
+            className={cn('px-3 py-1.5 text-xs rounded-xl font-semibold border transition-all',
+              !activeClinic ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50')}>
+            Todos
+          </button>
+          {clinics.map(c => (
+            <button key={c.id} onClick={() => setActiveClinic(activeClinic?.id === c.id ? null : c)}
+              className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl font-semibold border transition-all',
+                activeClinic?.id === c.id ? 'text-white border-transparent' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50')}
+              style={activeClinic?.id === c.id ? { background: c.color } : {}}>
+              <span className="w-2 h-2 rounded-full" style={{ background: c.color }} />
+              {c.nombre}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Stats — 5 cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">

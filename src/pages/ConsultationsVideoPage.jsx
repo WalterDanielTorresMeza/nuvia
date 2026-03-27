@@ -4,11 +4,15 @@ import { supabase } from '../lib/supabase'
 import { calcEdad } from '../utils'
 import {
   Video, PhoneOff, Copy, Check, Loader2, ChevronRight,
-  Clock, CalendarDays, Wifi, ExternalLink,
+  Clock, CalendarDays, Wifi, ExternalLink, Plus,
   PanelRightClose, PanelRightOpen, AlertCircle,
 } from 'lucide-react'
 import { FaDroplet, FaMars, FaVenus } from 'react-icons/fa6'
 import { cn } from '../utils'
+import { NewAppointmentModal } from './AppointmentsPage'
+import { usePatientsStore } from '../store/patientsStore'
+import { useAuthStore } from '../store/authStore'
+import { useClinicStore } from '../store/clinicStore'
 
 /* ── Room URL deterministic from appointment id ── */
 function getRoomUrl(id) {
@@ -330,11 +334,18 @@ function VideoCallModal({ apt, onClose }) {
 /* ══════════════════════════════════════════════ */
 export default function ConsultationsVideoPage() {
   const [appointments, setAppointments] = useState([])
-  const [loading, setLoading]   = useState(true)
+  const [loading, setLoading]       = useState(true)
   const [activeCall, setActiveCall] = useState(null)
-  const [copiedId, setCopiedId] = useState(null)
+  const [copiedId, setCopiedId]     = useState(null)
+  const [showNewModal, setShowNewModal] = useState(false)
+  const { patients, fetchPatients } = usePatientsStore()
+  const { doctor }   = useAuthStore()
+  const { clinics, activeClinic } = useClinicStore()
 
-  useEffect(() => { fetchVideo() }, [])
+  useEffect(() => {
+    fetchVideo()
+    if (patients.length === 0) fetchPatients()
+  }, [])
 
   const fetchVideo = async () => {
     if (appointments.length === 0) setLoading(true)
@@ -424,6 +435,10 @@ export default function ConsultationsVideoPage() {
               {loading ? 'Cargando...' : `${appointments.length} consulta${appointments.length !== 1 ? 's' : ''} programada${appointments.length !== 1 ? 's' : ''}`}
             </p>
           </div>
+          <button onClick={() => setShowNewModal(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl font-semibold text-sm transition-colors shadow-sm">
+            <Plus className="w-4 h-4" /> Nueva videoconsulta
+          </button>
 
           {/* Stats */}
           {!loading && (
@@ -481,15 +496,15 @@ export default function ConsultationsVideoPage() {
             </div>
             <p className="text-slate-700 font-semibold">No hay videoconsultas programadas</p>
             <p className="text-slate-400 text-sm mt-1">
-              Agenda una cita de tipo <span className="font-medium text-slate-500">Videoconsulta</span> en la sección de Agenda
+              Agenda tu primera videoconsulta para comenzar
             </p>
-            <a
-              href="/agenda"
+            <button
+              onClick={() => setShowNewModal(true)}
               className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl text-sm font-semibold transition-colors"
             >
-              <CalendarDays className="w-4 h-4" />
-              Ir a Agenda
-            </a>
+              <Plus className="w-4 h-4" />
+              Agendar videoconsulta
+            </button>
           </div>
 
         ) : (
@@ -508,6 +523,19 @@ export default function ConsultationsVideoPage() {
         <VideoCallModal
           apt={activeCall}
           onClose={() => setActiveCall(null)}
+        />
+      )}
+
+      {/* New videoconsulta modal */}
+      {showNewModal && (
+        <NewAppointmentModal
+          patients={patients}
+          doctorId={doctor?.id}
+          clinics={clinics}
+          activeClinic={activeClinic}
+          defaultTipo="videoconsulta"
+          onClose={() => setShowNewModal(false)}
+          onSaved={() => { setShowNewModal(false); fetchVideo() }}
         />
       )}
     </>
