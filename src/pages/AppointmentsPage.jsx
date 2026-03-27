@@ -251,15 +251,20 @@ export default function AppointmentsPage() {
     return appointments.filter(a => a.clinic_id === activeClinic.id)
   }, [appointments, activeClinic])
 
+  const filteredCalApts = useMemo(() => {
+    if (!activeClinic) return calApts
+    return calApts.filter(a => a.clinic_id === activeClinic.id)
+  }, [calApts, activeClinic])
+
   const dayApts = useMemo(() => {
     if (!selectedDay) return []
-    return calApts
+    return filteredCalApts
       .filter(a => {
         const d = new Date(a.fecha_hora)
         return d.getFullYear() === calYear && d.getMonth() === calMonth && d.getDate() === selectedDay
       })
       .sort((a, b) => new Date(a.fecha_hora) - new Date(b.fecha_hora))
-  }, [calApts, selectedDay, calYear, calMonth])
+  }, [filteredCalApts, selectedDay, calYear, calMonth])
 
   const grouped = filteredApts.reduce((acc, apt) => {
     const key = new Date(apt.fecha_hora).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -333,7 +338,7 @@ export default function AppointmentsPage() {
                 <Loader2 className="w-6 h-6 animate-spin text-primary-400" />
               </div>
             ) : (
-              <MonthCalendar year={calYear} month={calMonth} apts={calApts}
+              <MonthCalendar year={calYear} month={calMonth} apts={filteredCalApts}
                 selectedDay={selectedDay} onSelectDay={setSelectedDay}
                 onPrev={prevMonth} onNext={nextMonth} />
             )}
