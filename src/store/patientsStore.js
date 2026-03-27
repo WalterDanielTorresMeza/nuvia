@@ -80,7 +80,7 @@ export const usePatientsStore = create((set, get) => ({
   upsertBackground: async (patientId, bgData) => {
     const { data, error } = await supabase
       .from('clinical_background')
-      .upsert({ patient_id: patientId, ...bgData, updated_at: new Date().toISOString() })
+      .upsert({ patient_id: patientId, ...bgData, updated_at: new Date().toISOString() }, { onConflict: 'patient_id' })
       .select()
       .single()
     if (error) return { error: error.message }
@@ -88,43 +88,26 @@ export const usePatientsStore = create((set, get) => ({
   },
 
   addVitalSigns: async (vitals) => {
-    const { data, error } = await supabase
-      .from('vital_signs')
-      .insert([vitals])
-      .select()
-      .single()
+    const { error } = await supabase.from('vital_signs').insert([vitals])
     if (error) return { error: error.message }
-    return { data }
+    return { ok: true }
   },
 
   addMedication: async (med) => {
-    const { data, error } = await supabase
-      .from('medications')
-      .insert([med])
-      .select()
-      .single()
+    const { error } = await supabase.from('medications').insert([med])
     if (error) return { error: error.message }
-    return { data }
+    return { ok: true }
   },
 
   updateMedication: async (id, updates) => {
-    const { data, error } = await supabase
-      .from('medications')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
+    const { error } = await supabase.from('medications').update(updates).eq('id', id)
     if (error) return { error: error.message }
-    return { data }
+    return { ok: true }
   },
 
   addVaccine: async (vaccine) => {
-    const { data, error } = await supabase
-      .from('vaccines')
-      .insert([vaccine])
-      .select()
-      .single()
+    const { error } = await supabase.from('vaccines').insert([vaccine])
     if (error) return { error: error.message }
-    return { data }
+    return { ok: true }
   },
 }))

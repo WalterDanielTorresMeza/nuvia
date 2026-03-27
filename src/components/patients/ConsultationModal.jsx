@@ -134,6 +134,7 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
   const saveData = async (estado = form.estado) => {
     const doctorId = await resolveDoctorId()
     const payload = { ...form, estado, patient_id: patient.id, doctor_id: doctorId }
+    if (!payload.proxima_cita) delete payload.proxima_cita
     if (consultId) {
       const { error } = await supabase.from('consultations').update(payload).eq('id', consultId)
       if (error) return error.message

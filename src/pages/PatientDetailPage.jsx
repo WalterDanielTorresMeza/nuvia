@@ -806,7 +806,12 @@ function VaxForm({ patientId, onCancel, onSaved }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
-    await addVaccine({ ...f, patient_id: patientId })
+    const payload = { ...f, patient_id: patientId }
+    if (!payload.fecha_aplicacion) delete payload.fecha_aplicacion
+    if (!payload.proxima_dosis) delete payload.proxima_dosis
+    if (!payload.dosis_numero) delete payload.dosis_numero
+    else payload.dosis_numero = parseInt(payload.dosis_numero)
+    await addVaccine(payload)
     setSaving(false)
     onSaved()
   }
@@ -909,6 +914,7 @@ function ProblemForm({ patientId, onCancel, onSaved }) {
 
 /* ─── NoteForm ──────────────────────────────────────────────────── */
 function NoteForm({ patientId, onCancel, onSaved }) {
+  const { doctor } = useAuthStore()
   const [saving, setSaving] = useState(false)
   const [texto, setTexto] = useState('')
 
@@ -918,8 +924,8 @@ function NoteForm({ patientId, onCancel, onSaved }) {
     setSaving(true)
     await supabase.from('clinical_notes').insert([{
       patient_id: patientId,
+      doctor_id: doctor?.id,
       contenido: texto.split('\n').map(l => `<p>${l || '<br>'}</p>`).join(''),
-      titulo: texto.slice(0, 60),
     }])
     setSaving(false)
     onSaved()
@@ -950,6 +956,7 @@ function NoteForm({ patientId, onCancel, onSaved }) {
 
 /* ─── FileUploadSection ─────────────────────────────────────────── */
 function FileUploadSection({ patientId, files, onRefresh }) {
+  const { doctor } = useAuthStore()
   const fileRef = useRef(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -970,10 +977,12 @@ function FileUploadSection({ patientId, files, onRefresh }) {
 
       await supabase.from('patient_files').insert([{
         patient_id: patientId,
+        doctor_id: doctor?.id,
         nombre: file.name,
         url: publicUrl,
         tipo: file.type,
-        tamanio: file.size,
+        tamano: file.size,
+        storage_path: path,
       }])
       onRefresh()
     } catch (err) {
