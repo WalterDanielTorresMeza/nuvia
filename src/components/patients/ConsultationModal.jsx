@@ -143,7 +143,7 @@ function CIE10Input({ value, onChange }) {
   )
 }
 
-/* ── Solicitud de ultrasonido imprimible ── */
+/* ── Solicitud de estudios de imagen imprimible ── */
 function PrintUltraSound({ form, patient, doctor, onClose }) {
   const [docFull, setDocFull] = useState(null)
   useEffect(() => {
@@ -159,16 +159,32 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
     ? `${new Date().getFullYear() - new Date(patient.fecha_nacimiento).getFullYear()} años` : ''
 
   const estudios = [
-    { label: 'Abdomen completo', checked: false },
-    { label: 'Abdomen superior', checked: false },
-    { label: 'Pélvico / Ginecológico', checked: false },
-    { label: 'Obstétrico', checked: false },
-    { label: 'Renal y vías urinarias', checked: false },
-    { label: 'Tiroides', checked: false },
-    { label: 'Partes blandas / Tejidos', checked: false },
-    { label: 'Hepático / Hígado y vías biliares', checked: false },
-    { label: 'Doppler vascular', checked: false },
-    { label: 'Musculoesquelético', checked: false },
+    // Ultrasonidos
+    { label: 'Ultrasonido abdominal completo' },
+    { label: 'Ultrasonido pélvico / ginecológico' },
+    { label: 'Ultrasonido obstétrico' },
+    { label: 'Ultrasonido renal y vías urinarias' },
+    { label: 'Ultrasonido tiroideo' },
+    { label: 'Ultrasonido Doppler vascular' },
+    { label: 'Ultrasonido musculoesquelético' },
+    // Tomografías
+    { label: 'Tomografía de cráneo (TC)' },
+    { label: 'Tomografía de tórax (TC)' },
+    { label: 'Tomografía de abdomen y pelvis (TC)' },
+    { label: 'Tomografía de columna (TC)' },
+    // Resonancias
+    { label: 'Resonancia magnética (RM) de cerebro' },
+    { label: 'Resonancia magnética (RM) de columna' },
+    { label: 'Resonancia magnética (RM) de rodilla/cadera' },
+    // Angiotomografía / Angiografía
+    { label: 'Angiotomografía coronaria (AngioTC)' },
+    { label: 'Angiotomografía pulmonar (AngioTC)' },
+    { label: 'Angiografía cerebral' },
+    // Otros
+    { label: 'Radiografía de tórax (Rx)' },
+    { label: 'Radiografía ósea / articular (Rx)' },
+    { label: 'Densitometría ósea (DEXA)' },
+    { label: 'Gammagrafía / Medicina nuclear' },
   ]
 
   return (
@@ -177,7 +193,7 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-4" onClick={e => e.stopPropagation()}>
         {/* Toolbar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 print:hidden">
-          <h2 className="font-bold text-slate-800">Solicitud de Ultrasonido</h2>
+          <h2 className="font-bold text-slate-800">Solicitud de Estudios de Imagen</h2>
           <div className="flex items-center gap-2">
             <button onClick={() => window.print()}
               className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-semibold transition-colors">
@@ -200,7 +216,7 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
               {doc?.telefono        && <p className="text-sm text-slate-500">Tel.: {doc.telefono}</p>}
             </div>
             <div className="text-right">
-              <p className="text-sm font-bold text-slate-600 uppercase tracking-wider">Solicitud de Ultrasonido</p>
+              <p className="text-sm font-bold text-slate-600 uppercase tracking-wider">Solicitud de Estudios de Imagen</p>
               <p className="text-sm text-slate-500 mt-1">{fecha}</p>
             </div>
           </div>
@@ -220,17 +236,17 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
           {/* Estudios a realizar */}
           <div>
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Estudio(s) solicitado(s)</p>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-2.5">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
               {estudios.map(({ label }) => (
-                <div key={label} className="flex items-center gap-3">
-                  <div className="w-4 h-4 border-2 border-slate-400 rounded flex-shrink-0" />
-                  <span className="text-sm text-slate-700">{label}</span>
+                <div key={label} className="flex items-center gap-2.5">
+                  <div className="w-3.5 h-3.5 border-2 border-slate-400 rounded flex-shrink-0" />
+                  <span className="text-xs text-slate-700">{label}</span>
                 </div>
               ))}
             </div>
-            <div className="flex items-center gap-3 mt-2.5">
-              <div className="w-4 h-4 border-2 border-slate-400 rounded flex-shrink-0" />
-              <span className="text-sm text-slate-500 flex-1">Otro:&nbsp;
+            <div className="flex items-center gap-2.5 mt-2">
+              <div className="w-3.5 h-3.5 border-2 border-slate-400 rounded flex-shrink-0" />
+              <span className="text-xs text-slate-500 flex-1">Otro:&nbsp;
                 <span className="inline-block border-b border-slate-300 w-48" />
               </span>
             </div>
@@ -718,7 +734,7 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
             </div>
             <button onClick={() => setShowUltra(true)}
               className="mt-3 flex items-center gap-2 text-sm text-teal-600 hover:text-teal-700 font-medium transition-colors">
-              <Printer className="w-4 h-4" /> Generar solicitud de ultrasonido
+              <Printer className="w-4 h-4" /> Generar solicitud de estudios de imagen
             </button>
           </Section>
 

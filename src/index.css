@@ -84,7 +84,7 @@
 /* ── Page transition ── */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: none; }
 }
 .page-enter {
   animation: fadeUp 0.2s ease-out forwards;

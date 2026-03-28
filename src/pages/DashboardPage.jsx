@@ -124,7 +124,7 @@ export default function DashboardPage() {
         supabase.from('invoices').select('total, fecha').gte('fecha', start6m.toISOString()).eq('estado', 'timbrada'),
       ])
 
-      const citasHoyList = apptHoy || []
+      const citasHoyList = (apptHoy || []).filter(a => a.patients?.activo !== false)
       const videoHoy     = citasHoyList.filter(a => a.tipo === 'videoconsulta').length
       const ingresosMes  = (invoicesMes || []).reduce((s, i) => s + (i.total || 0), 0)
 
@@ -132,7 +132,7 @@ export default function DashboardPage() {
       setStats({ pacientes: pacientes || 0, citasHoy: citasHoyList.length, consultasMes: consMes || 0, videoHoy, ingresosMes, nuevosPatsMes: nuevosPats || 0, porCobrar })
       setCitasHoy(citasHoyList)
       setRecentPats(latestPats || [])
-      setProximasCitas(proximas || [])
+      setProximasCitas((proximas || []).filter(a => a.patients?.activo !== false))
 
       // Bar chart: últimos 6 meses
       const mesMap = {}

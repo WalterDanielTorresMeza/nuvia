@@ -203,6 +203,11 @@ export default function PatientDetailPage() {
   const lastConsult = consultations[0]
   const alergias = p.clinical_background?.alergias
 
+  const now = new Date()
+  const nextAppt = (p.appointments || [])
+    .filter(a => a.estado !== 'cancelada' && a.estado !== 'no_asistio' && new Date(a.fecha_hora) >= now)
+    .sort((a, b) => new Date(a.fecha_hora) - new Date(b.fecha_hora))[0]
+
   const imc = latest?.imc
   const imcInfo = imc ? clasificarIMC(imc) : null
   const imcColor = !imcInfo ? 'text-slate-800'
@@ -298,8 +303,8 @@ export default function PatientDetailPage() {
           </div>
         )}
 
-        {/* ══ 4 STAT CARDS ═══════════════════════════════════════════ */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* ══ STAT CARDS ══════════════════════════════════════════════ */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <StatCard
             icon={Calendar} iconBg="bg-primary-50" iconColor="text-primary-500"
             label="Última consulta"
@@ -326,6 +331,14 @@ export default function PatientDetailPage() {
             label="IMC / Peso"
             value={imc ? `${imc} kg/m²` : latest?.peso_kg ? `${latest.peso_kg} kg` : '—'}
             sub={imcInfo?.label || (latest?.peso_kg ? 'Sin IMC' : 'Sin registro')}
+          />
+          <StatCard
+            icon={Calendar}
+            iconBg={nextAppt ? 'bg-teal-50' : 'bg-slate-100'}
+            iconColor={nextAppt ? 'text-teal-600' : 'text-slate-400'}
+            label="Próxima cita"
+            value={nextAppt ? formatFecha(nextAppt.fecha_hora) : 'Sin citas'}
+            sub={nextAppt ? new Date(nextAppt.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : 'No programada'}
           />
         </div>
 
@@ -540,7 +553,7 @@ export default function PatientDetailPage() {
           {/* Antecedentes */}
           <CollapsibleCard
             icon={FaNotesMedical} iconBg="bg-teal-50" iconColor="text-teal-500"
-            title="Antecedentes" defaultOpen={false}
+            title="Antecedentes" defaultOpen={true}
           >
             <BackgroundView background={p.clinical_background} patientId={p.id} onSaved={() => fetchPatient(id)} />
           </CollapsibleCard>
@@ -548,7 +561,7 @@ export default function PatientDetailPage() {
           {/* Notas clínicas */}
           <CollapsibleCard
             icon={FaFileMedical} iconBg="bg-indigo-50" iconColor="text-indigo-500"
-            title="Notas clínicas" badge={notes.length} defaultOpen={notes.length > 0}
+            title="Notas clínicas" badge={notes.length} defaultOpen={true}
             action={<AddBtn onClick={() => setShowNoteForm(v => !v)} label="Nueva nota" />}
           >
             {showNoteForm && (
@@ -579,7 +592,7 @@ export default function PatientDetailPage() {
           {/* Archivos adjuntos */}
           <CollapsibleCard
             icon={FaPaperclip} iconBg="bg-slate-100" iconColor="text-slate-500"
-            title="Archivos adjuntos" badge={files.length} defaultOpen={files.length > 0}
+            title="Archivos adjuntos" badge={files.length} defaultOpen={true}
           >
             <FileUploadSection patientId={p.id} files={files} onRefresh={refreshFiles} />
           </CollapsibleCard>
@@ -824,12 +837,18 @@ function VaxForm({ patientId, onCancel, onSaved }) {
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
           <label className="text-xs text-slate-500 mb-1 block">Vacuna *</label>
-          <select className="input text-sm py-2" value={f.nombre} onChange={e => set('nombre', e.target.value)} required>
+          <select className="input text-sm py-2"
+            value={['COVID-19','Influenza','Hepatitis A','Hepatitis B','Tétanos','Neumococo','VPH','Sarampión/Rubéola','Varicela'].includes(f.nombre) ? f.nombre : f.nombre === '' ? '' : 'Otra'}
+            onChange={e => set('nombre', e.target.value)} required>
             <option value="">Seleccionar...</option>
             {['COVID-19','Influenza','Hepatitis A','Hepatitis B','Tétanos','Neumococo','VPH','Sarampión/Rubéola','Varicela','Otra'].map(v => (
               <option key={v}>{v}</option>
             ))}
           </select>
+          {f.nombre === 'Otra' && (
+            <input className="input text-sm py-2 mt-2" placeholder="Especificar nombre de vacuna..."
+              onChange={e => set('nombre', e.target.value || 'Otra')} required />
+          )}
         </div>
         <div>
           <label className="text-xs text-slate-500 mb-1 block">Fecha aplicación</label>
