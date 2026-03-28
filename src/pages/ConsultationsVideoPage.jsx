@@ -348,15 +348,26 @@ export default function ConsultationsVideoPage() {
   }, [])
 
   const fetchVideo = async () => {
-    if (appointments.length === 0) setLoading(true)
+    setLoading(true)
     try {
-      const { data } = await supabase
+      // Resolve doctor_id first so we can filter explicitly (belt-and-suspenders beyond RLS)
+      let doctorId = doctor?.id
+      if (!doctorId) {
+        const { data: doc } = await supabase.from('doctors').select('id').single()
+        doctorId = doc?.id
+      }
+      let q = supabase
         .from('appointments')
         .select('*, patients(id, nombre, apellidos, telefono, fecha_nacimiento, tipo_sangre, sexo)')
         .eq('tipo', 'videoconsulta')
         .in('estado', ['programada', 'confirmada'])
         .order('fecha_hora')
+      if (doctorId) q = q.eq('doctor_id', doctorId)
+      const { data, error } = await q
+      if (error) throw error
       setAppointments(data || [])
+    } catch (err) {
+      console.error('fetchVideo error:', err)
     } finally {
       setLoading(false)
     }
