@@ -17,11 +17,11 @@ import { cn } from '../utils'
 /* ─── Constants ─── */
 const ESTADOS = ['programada','confirmada','completada','cancelada','no_asistio']
 const ESTADO_STYLE = {
-  programada: { cls: 'bg-blue-100 text-blue-700',     label: 'Programada', row: '',                       dot: 'bg-blue-400',   desc: 'Cita agendada, pendiente de confirmar' },
-  confirmada: { cls: 'bg-emerald-100 text-emerald-700',label: 'Confirmada', row: '',                       dot: 'bg-emerald-400',desc: 'Paciente confirmó su asistencia' },
-  completada: { cls: 'bg-teal-100 text-teal-700',     label: 'Completada', row: 'bg-teal-50/40',           dot: 'bg-teal-400',   desc: 'Consulta realizada y concluida' },
-  cancelada:  { cls: 'bg-red-100 text-red-600',       label: 'Cancelada',  row: 'bg-red-50/50',            dot: 'bg-red-400',    desc: 'Cita cancelada por médico o paciente' },
-  no_asistio: { cls: 'bg-amber-100 text-amber-700',   label: 'No asistió', row: 'bg-amber-50/50',          dot: 'bg-amber-400',  desc: 'El paciente no se presentó a la cita' },
+  programada: { cls: 'bg-blue-100 text-blue-700',      label: 'Programada', row: '',             dot: 'bg-blue-400',    activeBg: '#3b82f6', desc: 'Cita agendada, pendiente de confirmar' },
+  confirmada: { cls: 'bg-emerald-100 text-emerald-700', label: 'Confirmada', row: '',             dot: 'bg-emerald-400', activeBg: '#10b981', desc: 'Paciente confirmó su asistencia' },
+  completada: { cls: 'bg-teal-100 text-teal-700',      label: 'Completada', row: 'bg-teal-50/40',dot: 'bg-teal-400',    activeBg: '#14b8a6', desc: 'Consulta realizada y concluida' },
+  cancelada:  { cls: 'bg-red-100 text-red-600',        label: 'Cancelada',  row: 'bg-red-50/50', dot: 'bg-red-400',     activeBg: '#ef4444', desc: 'Cita cancelada por médico o paciente' },
+  no_asistio: { cls: 'bg-amber-100 text-amber-700',    label: 'No asistió', row: 'bg-amber-50/50',dot: 'bg-amber-400',  activeBg: '#f59e0b', desc: 'El paciente no se presentó a la cita' },
 }
 const TIPO_ICON = {
   presencial:    <FaStethoscope className="w-3.5 h-3.5" />,
@@ -245,9 +245,10 @@ export default function AppointmentsPage() {
   const { appointments, loading, fetchAppointments, updateEstado } = useAppointmentsStore()
   const { clinics, activeClinic, fetchClinics, setActiveClinic }   = useClinicStore()
 
-  const [showModal, setShowModal] = useState(false)
-  const [filter, setFilter]       = useState('todas')
-  const [view, setView]           = useState('calendario')
+  const [showModal, setShowModal]       = useState(false)
+  const [filter, setFilter]             = useState('todas')
+  const [view, setView]                 = useState('calendario')
+  const [statusFilter, setStatusFilter] = useState(null)
 
   const now = new Date()
   const [calYear,    setCalYear]    = useState(now.getFullYear())
@@ -291,24 +292,24 @@ export default function AppointmentsPage() {
   }
 
   const filteredApts = useMemo(() => {
-    if (!activeClinic) return appointments
-    return appointments.filter(a => a.clinic_id === activeClinic.id)
-  }, [appointments, activeClinic])
+    let list = activeClinic ? appointments.filter(a => a.clinic_id === activeClinic.id) : appointments
+    if (statusFilter) list = list.filter(a => a.estado === statusFilter)
+    return list
+  }, [appointments, activeClinic, statusFilter])
 
   const filteredCalApts = useMemo(() => {
-    if (!activeClinic) return calApts
-    return calApts.filter(a => a.clinic_id === activeClinic.id)
+    return activeClinic ? calApts.filter(a => a.clinic_id === activeClinic.id) : calApts
   }, [calApts, activeClinic])
 
   const dayApts = useMemo(() => {
     if (!selectedDay) return []
-    return filteredCalApts
-      .filter(a => {
-        const d = new Date(a.fecha_hora)
-        return d.getFullYear() === calYear && d.getMonth() === calMonth && d.getDate() === selectedDay
-      })
-      .sort((a, b) => new Date(a.fecha_hora) - new Date(b.fecha_hora))
-  }, [filteredCalApts, selectedDay, calYear, calMonth])
+    let list = filteredCalApts.filter(a => {
+      const d = new Date(a.fecha_hora)
+      return d.getFullYear() === calYear && d.getMonth() === calMonth && d.getDate() === selectedDay
+    })
+    if (statusFilter) list = list.filter(a => a.estado === statusFilter)
+    return list.sort((a, b) => new Date(a.fecha_hora) - new Date(b.fecha_hora))
+  }, [filteredCalApts, selectedDay, calYear, calMonth, statusFilter])
 
   const grouped = filteredApts.reduce((acc, apt) => {
     const key = new Date(apt.fecha_hora).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -321,6 +322,28 @@ export default function AppointmentsPage() {
     fetchAppointments(filter)
     if (view === 'calendario') { setCalApts([]); fetchCalMonth() }
   }
+
+  const StatusFilterBar = () => (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        onClick={() => setStatusFilter(null)}
+        className={cn('px-3 py-1.5 text-xs rounded-xl font-semibold border transition-all',
+          !statusFilter ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50')}>
+        Todos los estados
+      </button>
+      {Object.entries(ESTADO_STYLE).map(([key, s]) => (
+        <button key={key}
+          onClick={() => setStatusFilter(statusFilter === key ? null : key)}
+          className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl font-semibold border transition-all',
+            statusFilter === key ? 'text-white border-transparent shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50')}
+          style={statusFilter === key ? { background: s.activeBg } : {}}
+          title={s.desc}>
+          <span className={cn('w-2 h-2 rounded-full flex-shrink-0', s.dot)} />
+          {s.label}
+        </button>
+      ))}
+    </div>
+  )
 
   return (
     <div className="space-y-5">
@@ -380,6 +403,8 @@ export default function AppointmentsPage() {
 
       {/* ── CALENDAR VIEW ── */}
       {view === 'calendario' && (
+        <>
+        <StatusFilterBar />
         <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-5">
           <div>
             {calLoading ? (
@@ -437,22 +462,13 @@ export default function AppointmentsPage() {
             )}
           </div>
         </div>
+        </>
       )}
 
       {/* ── LIST VIEW ── */}
       {view === 'lista' && (
         <>
-          {/* Status legend */}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs">
-            <span className="font-semibold text-slate-500 mr-1">Leyenda:</span>
-            {Object.values(ESTADO_STYLE).map(s => (
-              <span key={s.label} className="flex items-center gap-1.5 text-slate-600" title={s.desc}>
-                <span className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', s.dot)} />
-                <span className="font-medium">{s.label}</span>
-                <span className="text-slate-400 hidden sm:inline">— {s.desc}</span>
-              </span>
-            ))}
-          </div>
+          <StatusFilterBar />
 
           <div className="flex gap-2 flex-wrap">
             {FILTERS.map(({ val, label }) => (
