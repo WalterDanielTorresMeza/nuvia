@@ -17,11 +17,11 @@ import { cn } from '../utils'
 /* ─── Constants ─── */
 const ESTADOS = ['programada','confirmada','completada','cancelada','no_asistio']
 const ESTADO_STYLE = {
-  programada: { cls: 'bg-blue-100 text-blue-700',      label: 'Programada', row: '',             dot: 'bg-blue-400',    activeBg: '#3b82f6', desc: 'Cita agendada, pendiente de confirmar' },
-  confirmada: { cls: 'bg-emerald-100 text-emerald-700', label: 'Confirmada', row: '',             dot: 'bg-emerald-400', activeBg: '#10b981', desc: 'Paciente confirmó su asistencia' },
-  completada: { cls: 'bg-teal-100 text-teal-700',      label: 'Completada', row: 'bg-teal-50/40',dot: 'bg-teal-400',    activeBg: '#14b8a6', desc: 'Consulta realizada y concluida' },
-  cancelada:  { cls: 'bg-red-100 text-red-600',        label: 'Cancelada',  row: 'bg-red-50/50', dot: 'bg-red-400',     activeBg: '#ef4444', desc: 'Cita cancelada por médico o paciente' },
-  no_asistio: { cls: 'bg-amber-100 text-amber-700',    label: 'No asistió', row: 'bg-amber-50/50',dot: 'bg-amber-400',  activeBg: '#f59e0b', desc: 'El paciente no se presentó a la cita' },
+  programada: { cls: 'bg-blue-100 text-blue-700',      label: 'Programada', row: '',              dot: 'bg-blue-400',    border: 'border-l-blue-400',    activeBg: '#3b82f6', desc: 'Cita agendada, pendiente de confirmar' },
+  confirmada: { cls: 'bg-emerald-100 text-emerald-700', label: 'Confirmada', row: '',              dot: 'bg-emerald-400', border: 'border-l-emerald-400', activeBg: '#10b981', desc: 'Paciente confirmó su asistencia' },
+  completada: { cls: 'bg-teal-100 text-teal-700',      label: 'Completada', row: 'bg-teal-50/40', dot: 'bg-teal-400',    border: 'border-l-teal-400',    activeBg: '#14b8a6', desc: 'Consulta realizada y concluida' },
+  cancelada:  { cls: 'bg-red-100 text-red-600',        label: 'Cancelada',  row: 'bg-red-50/50',  dot: 'bg-red-400',     border: 'border-l-red-400',     activeBg: '#ef4444', desc: 'Cita cancelada por médico o paciente' },
+  no_asistio: { cls: 'bg-amber-100 text-amber-700',    label: 'No asistió', row: 'bg-amber-50/50', dot: 'bg-amber-400',  border: 'border-l-amber-400',   activeBg: '#f59e0b', desc: 'El paciente no se presentó a la cita' },
 }
 const TIPO_ICON = {
   presencial:    <FaStethoscope className="w-3.5 h-3.5" />,
@@ -33,11 +33,7 @@ const TIPO_DOT = {
   videoconsulta: 'bg-violet-400',
   urgencia:      'bg-red-400',
 }
-const TIPO_BORDER = {
-  presencial:    'border-l-sky-400',
-  videoconsulta: 'border-l-violet-400',
-  urgencia:      'border-l-red-400',
-}
+
 const FILTERS = [
   { val: 'hoy',        label: 'Hoy'        },
   { val: 'semana',     label: 'Esta semana' },
@@ -195,7 +191,7 @@ function AptRow({ apt, onNavigate, onUpdateEstado, clinics }) {
     <div className={cn(
       'rounded-2xl border border-slate-200 border-l-4 p-4 flex items-center gap-4',
       'hover:shadow-sm transition-all group',
-      TIPO_BORDER[apt.tipo] || 'border-l-slate-200',
+      st.border || 'border-l-slate-200',
       st.row || 'bg-white'
     )}>
       <div className="flex-shrink-0 text-center w-14">
@@ -321,6 +317,11 @@ export default function AppointmentsPage() {
   const onSaved = () => {
     fetchAppointments(filter)
     if (view === 'calendario') { setCalApts([]); fetchCalMonth() }
+  }
+
+  const handleUpdateEstado = (id, estado) => {
+    updateEstado(id, estado)
+    setCalApts(prev => prev.map(a => a.id === id ? { ...a, estado } : a))
   }
 
   const StatusFilterBar = () => (
@@ -454,7 +455,7 @@ export default function AppointmentsPage() {
                     dayApts.map(apt => (
                       <AptRow key={apt.id} apt={apt} clinics={clinics}
                         onNavigate={id => navigate(`/pacientes/${id}`)}
-                        onUpdateEstado={updateEstado} />
+                        onUpdateEstado={handleUpdateEstado} />
                     ))
                   )}
                 </div>
@@ -499,7 +500,7 @@ export default function AppointmentsPage() {
                     {apts.map(apt => (
                       <AptRow key={apt.id} apt={apt} clinics={clinics}
                         onNavigate={id => navigate(`/pacientes/${id}`)}
-                        onUpdateEstado={updateEstado} />
+                        onUpdateEstado={handleUpdateEstado} />
                     ))}
                   </div>
                 </div>
