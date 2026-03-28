@@ -28,11 +28,7 @@ const TIPO_ICON = {
   videoconsulta: <FaVideo className="w-3.5 h-3.5" />,
   urgencia:      <FaTriangleExclamation className="w-3.5 h-3.5" />,
 }
-const TIPO_DOT = {
-  presencial:    'bg-sky-400',
-  videoconsulta: 'bg-violet-400',
-  urgencia:      'bg-red-400',
-}
+
 
 const FILTERS = [
   { val: 'hoy',        label: 'Hoy'        },
@@ -154,12 +150,7 @@ function MonthCalendar({ year, month, apts, selectedDay, onSelectDay, onPrev, on
                     {day}
                   </span>
                   {dayApts.length > 0 && (
-                    <div className="flex gap-0.5 items-center">
-                      {dayApts.slice(0,3).map((a,i) => (
-                        <span key={i} className={cn('w-1 h-1 rounded-full', isSelected ? 'bg-white/70' : TIPO_DOT[a.tipo] || 'bg-slate-400')} />
-                      ))}
-                      {dayApts.length > 3 && <span className={cn('text-[8px]', isSelected ? 'text-white/60' : 'text-slate-400')}>+</span>}
-                    </div>
+                    <span className={cn('w-1.5 h-1.5 rounded-full', isSelected ? 'bg-white/80' : 'bg-primary-400')} />
                   )}
                 </button>
               )
