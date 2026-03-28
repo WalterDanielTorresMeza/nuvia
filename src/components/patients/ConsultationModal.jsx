@@ -146,6 +146,8 @@ function CIE10Input({ value, onChange }) {
 /* ── Solicitud de estudios de imagen imprimible ── */
 function PrintUltraSound({ form, patient, doctor, onClose }) {
   const [docFull, setDocFull] = useState(null)
+  const [selected, setSelected] = useState([])
+  const [otro, setOtro] = useState('')
   useEffect(() => {
     if (!doctor?.id) return
     supabase.from('doctors')
@@ -154,6 +156,7 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
       .then(({ data }) => { if (data) setDocFull(data) })
   }, [doctor?.id])
   const doc   = docFull || doctor
+  const toggle = (label) => setSelected(s => s.includes(label) ? s.filter(x => x !== label) : [...s, label])
   const fecha = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
   const edad  = patient.fecha_nacimiento
     ? `${new Date().getFullYear() - new Date(patient.fecha_nacimiento).getFullYear()} años` : ''
@@ -233,23 +236,51 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
             </div>
           </div>
 
-          {/* Estudios a realizar */}
-          <div>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Estudio(s) solicitado(s)</p>
+          {/* Estudios a realizar — selección interactiva (se oculta al imprimir) */}
+          <div className="print:hidden">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Selecciona los estudios solicitados</p>
             <div className="grid grid-cols-2 gap-x-6 gap-y-2">
               {estudios.map(({ label }) => (
-                <div key={label} className="flex items-center gap-2.5">
-                  <div className="w-3.5 h-3.5 border-2 border-slate-400 rounded flex-shrink-0" />
-                  <span className="text-xs text-slate-700">{label}</span>
-                </div>
+                <label key={label} className="flex items-center gap-2.5 cursor-pointer group">
+                  <input type="checkbox" checked={selected.includes(label)} onChange={() => toggle(label)}
+                    className="w-3.5 h-3.5 accent-teal-600 flex-shrink-0" />
+                  <span className={`text-xs ${selected.includes(label) ? 'text-teal-700 font-semibold' : 'text-slate-600'}`}>{label}</span>
+                </label>
               ))}
             </div>
             <div className="flex items-center gap-2.5 mt-2">
-              <div className="w-3.5 h-3.5 border-2 border-slate-400 rounded flex-shrink-0" />
-              <span className="text-xs text-slate-500 flex-1">Otro:&nbsp;
-                <span className="inline-block border-b border-slate-300 w-48" />
-              </span>
+              <input type="checkbox" checked={!!otro} readOnly className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="text-xs text-slate-500">Otro:</span>
+              <input type="text" value={otro} onChange={e => setOtro(e.target.value)}
+                placeholder="Especificar..." className="text-xs border-b border-slate-300 outline-none flex-1 px-1" />
             </div>
+          </div>
+
+          {/* Solo impresión: muestra únicamente los seleccionados */}
+          <div className="hidden print:block">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Estudio(s) solicitado(s)</p>
+            {selected.length === 0 && !otro ? (
+              <p className="text-xs text-slate-400 italic">Sin estudios seleccionados</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {selected.map(label => (
+                  <li key={label} className="flex items-center gap-2.5">
+                    <div className="w-3.5 h-3.5 border-2 border-slate-800 rounded flex-shrink-0 flex items-center justify-center">
+                      <div className="w-2 h-2 bg-slate-800 rounded-sm" />
+                    </div>
+                    <span className="text-sm text-slate-800">{label}</span>
+                  </li>
+                ))}
+                {otro && (
+                  <li className="flex items-center gap-2.5">
+                    <div className="w-3.5 h-3.5 border-2 border-slate-800 rounded flex-shrink-0 flex items-center justify-center">
+                      <div className="w-2 h-2 bg-slate-800 rounded-sm" />
+                    </div>
+                    <span className="text-sm text-slate-800">{otro}</span>
+                  </li>
+                )}
+              </ul>
+            )}
           </div>
 
           <div className="h-px bg-slate-200" />
