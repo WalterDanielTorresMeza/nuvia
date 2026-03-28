@@ -802,10 +802,19 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
                   onDelete={() => set('medicamentos_receta', form.medicamentos_receta.filter((_, idx) => idx !== i))} />
               ))}
             </div>
-            <button onClick={addMed}
-              className="mt-3 flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors">
-              <Plus className="w-4 h-4" /> Agregar medicamento
-            </button>
+            <div className="mt-3 flex items-center justify-between">
+              <button onClick={addMed}
+                className="flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors">
+                <Plus className="w-4 h-4" /> Agregar medicamento
+              </button>
+              {form.medicamentos_receta.length > 0 && (
+                <button onClick={() => {
+                  if (window.confirm('¿Borrar toda la receta?')) set('medicamentos_receta', [])
+                }} className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 font-medium transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" /> Borrar receta completa
+                </button>
+              )}
+            </div>
           </Section>
 
           {/* Instrucciones + Plan */}
