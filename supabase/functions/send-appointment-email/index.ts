@@ -129,6 +129,15 @@ Deno.serve(async (req) => {
 
     const icsBase64 = btoa(unescape(encodeURIComponent(icsContent)))
 
+    // Calendar links
+    const gcStart = toICSDate(start)
+    const gcEnd   = toICSDate(end)
+    const gcTitle = encodeURIComponent(`Cita médica — ${doctorName}`)
+    const gcDetails = encodeURIComponent(`Tipo: ${tipoLabel}${apt.motivo ? '\nMotivo: ' + apt.motivo : ''}`)
+    const gcLocation = encodeURIComponent(location)
+    const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${gcTitle}&dates=${gcStart}/${gcEnd}&details=${gcDetails}&location=${gcLocation}`
+    const outlookCalendarUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${gcTitle}&startdt=${start.toISOString()}&enddt=${end.toISOString()}&body=${gcDetails}&location=${gcLocation}`
+
     // HTML email body
     const htmlBody = `
 <!DOCTYPE html>
@@ -179,11 +188,11 @@ Deno.serve(async (req) => {
 
       <!-- Calendar CTA -->
       <div style="text-align:center;margin-bottom:24px">
-        <p style="margin:0 0 12px;color:#64748b;font-size:13px">Abre el archivo adjunto <strong>cita.ics</strong> para agregar esta cita a tu calendario:</p>
+        <p style="margin:0 0 12px;color:#64748b;font-size:13px">Agrega esta cita a tu calendario con un clic:</p>
         <div style="display:inline-flex;gap:8px;flex-wrap:wrap;justify-content:center">
-          <span style="background:#e0f2fe;color:#0369a1;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600">📱 Google Calendar (Android)</span>
-          <span style="background:#f0fdf4;color:#166534;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600">🍎 Apple Calendar (iPhone/Mac)</span>
-          <span style="background:#eff6ff;color:#1d4ed8;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600">📆 Outlook</span>
+          <a href="${googleCalendarUrl}" target="_blank" style="background:#e0f2fe;color:#0369a1;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;text-decoration:none;display:inline-block">📱 Google Calendar</a>
+          <a href="${outlookCalendarUrl}" target="_blank" style="background:#eff6ff;color:#1d4ed8;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;text-decoration:none;display:inline-block">📆 Outlook</a>
+          <span style="background:#f0fdf4;color:#166534;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;display:inline-block">🍎 iPhone/Mac: abre el adjunto <strong>cita.ics</strong></span>
         </div>
       </div>
 
