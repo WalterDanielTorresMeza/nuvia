@@ -686,8 +686,8 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
 
           {/* Diagnóstico */}
           <Section icon={ClipboardList} title="Diagnóstico" color="text-orange-500">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
                 <label className="label">Diagnóstico clínico</label>
                 <textarea rows={3} className="input resize-none text-sm"
                   placeholder="Diagnóstico principal..."
@@ -696,13 +696,6 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
               <div>
                 <label className="label">Código CIE-10</label>
                 <CIE10Input value={form.diagnostico_cie10} onChange={v => set('diagnostico_cie10', v)} />
-                <label className="label mt-3 flex items-center gap-1.5">
-                  Próxima cita
-                  <span className="text-[10px] font-normal text-primary-500 normal-case tracking-normal">
-                    → se agenda automáticamente
-                  </span>
-                </label>
-                <input type="date" className="input text-sm" value={form.proxima_cita} onChange={e => set('proxima_cita', e.target.value)} />
               </div>
             </div>
           </Section>
@@ -793,6 +786,25 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Próxima cita */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5" /> Próxima cita
+            </p>
+            <input
+              type="date"
+              className="input text-sm"
+              value={form.proxima_cita}
+              onChange={e => set('proxima_cita', e.target.value)}
+            />
+            {form.proxima_cita && (
+              <p className="text-[10px] text-primary-500 mt-1.5 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary-400 inline-block" />
+                Se agendará automáticamente al guardar
+              </p>
+            )}
           </div>
 
           {/* Active problems */}

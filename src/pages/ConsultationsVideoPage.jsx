@@ -192,14 +192,14 @@ function VideoCard({ apt, onStart, onCopy, copied, onComplete }) {
 
 /* ── Video call modal (embedded Jitsi + patient sidebar) ── */
 function VideoCallModal({ apt, onClose }) {
-  const [sidebar, setSidebar] = useState(true)
+  const [sidebar, setSidebar] = useState(false)
   const p              = apt.patients || {}
   const edad           = calcEdad(p.fecha_nacimiento)
   const roomUrl        = getRoomUrl(apt.id)
   const hora = new Date(apt.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-900">
+    <div className="fixed inset-0 z-[9999] flex flex-col bg-slate-900">
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-slate-800 border-b border-slate-700 flex-shrink-0">
