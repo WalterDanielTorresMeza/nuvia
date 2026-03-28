@@ -28,6 +28,7 @@ export default function NewPatientModal({ onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.nombre || !form.apellidos) { setError('Nombre y apellidos son requeridos'); return }
+    if (clinics.length > 0 && !form.clinic_id) { setError('Selecciona un consultorio para el paciente'); return }
     setLoading(true)
     setError('')
     try {
