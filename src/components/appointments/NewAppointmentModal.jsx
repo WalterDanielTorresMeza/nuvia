@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Calendar, X, AlertTriangle, Loader2 } from 'lucide-react'
+import { Calendar, X, AlertTriangle, Loader2, Search, ChevronDown } from 'lucide-react'
 import { cn } from '../../utils'
 
 function detectsConflict(existing, newStart, newEnd) {
@@ -14,9 +14,12 @@ export default function NewAppointmentModal({
   clinics = [], activeClinic = null,
   preselectedPatientId = null, defaultTipo = 'presencial', onClose, onSaved,
 }) {
-  const [saving, setSaving]     = useState(false)
-  const [error, setError]       = useState('')
-  const [conflict, setConflict] = useState(null)
+  const [saving, setSaving]         = useState(false)
+  const [error, setError]           = useState('')
+  const [conflict, setConflict]     = useState(null)
+  const [patientSearch, setPatientSearch] = useState('')
+  const [patientOpen, setPatientOpen]     = useState(false)
+  const patientRef = useRef(null)
   const [form, setForm] = useState({
     patient_id:   preselectedPatientId || '',
     fecha_hora:   '',
@@ -28,6 +31,18 @@ export default function NewAppointmentModal({
     clinic_id:    activeClinic?.id || '',
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  // Close patient dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e) => { if (patientRef.current && !patientRef.current.contains(e.target)) setPatientOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const selectedPatient = patients.find(p => p.id === form.patient_id)
+  const filteredPatients = patients.filter(p =>
+    `${p.nombre} ${p.apellidos}`.toLowerCase().includes(patientSearch.toLowerCase())
+  )
 
   const checkConflict = (fechaHora, duracion) => {
     if (!fechaHora) { setConflict(null); return }
@@ -118,12 +133,57 @@ export default function NewAppointmentModal({
             </div>
           )}
 
-          <div>
+          <div ref={patientRef} className="relative">
             <label className="label">Paciente *</label>
-            <select className="input" value={form.patient_id} onChange={e => set('patient_id', e.target.value)} required disabled={!!preselectedPatientId}>
-              <option value="">Seleccionar paciente...</option>
-              {patients.map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellidos}</option>)}
-            </select>
+            {preselectedPatientId ? (
+              <div className="input text-sm text-slate-700">
+                {selectedPatient ? `${selectedPatient.nombre} ${selectedPatient.apellidos}` : 'Paciente seleccionado'}
+              </div>
+            ) : (
+              <>
+                <button type="button"
+                  onClick={() => { setPatientOpen(o => !o); setPatientSearch('') }}
+                  className={cn('input text-sm text-left flex items-center justify-between gap-2 w-full',
+                    !form.patient_id && 'text-slate-400')}>
+                  <span className="truncate">
+                    {selectedPatient ? `${selectedPatient.nombre} ${selectedPatient.apellidos}` : 'Seleccionar paciente...'}
+                  </span>
+                  <ChevronDown className={cn('w-4 h-4 flex-shrink-0 text-slate-400 transition-transform', patientOpen && 'rotate-180')} />
+                </button>
+
+                {patientOpen && (
+                  <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                    <div className="p-2 border-b border-slate-100">
+                      <div className="flex items-center gap-2 px-2 py-1.5 bg-slate-50 rounded-lg">
+                        <Search className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                        <input
+                          autoFocus
+                          type="text"
+                          placeholder="Buscar paciente..."
+                          value={patientSearch}
+                          onChange={e => setPatientSearch(e.target.value)}
+                          className="flex-1 text-sm bg-transparent outline-none text-slate-700 placeholder-slate-400"
+                        />
+                      </div>
+                    </div>
+                    <ul className="max-h-48 overflow-y-auto py-1">
+                      {filteredPatients.length === 0 ? (
+                        <li className="px-4 py-3 text-sm text-slate-400 text-center">Sin resultados</li>
+                      ) : filteredPatients.map(p => (
+                        <li key={p.id}>
+                          <button type="button"
+                            onClick={() => { set('patient_id', p.id); setPatientOpen(false) }}
+                            className={cn('w-full text-left px-4 py-2.5 text-sm hover:bg-primary-50 hover:text-primary-700 transition-colors',
+                              form.patient_id === p.id && 'bg-primary-50 text-primary-700 font-medium')}>
+                            {p.nombre} {p.apellidos}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
