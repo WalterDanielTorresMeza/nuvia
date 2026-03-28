@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { usePatientsStore } from '../../store/patientsStore'
+import { useClinicStore } from '../../store/clinicStore'
 import { X, Loader2, Save } from 'lucide-react'
+import { cn } from '../../utils'
 
 export default function EditPatientModal({ patient, onClose }) {
   const { updatePatient } = usePatientsStore()
+  const { clinics } = useClinicStore()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [form, setForm] = useState({
@@ -18,6 +21,7 @@ export default function EditPatientModal({ patient, onClose }) {
     direccion: patient.direccion || '',
     rfc: patient.rfc || '',
     razon_social_factura: patient.razon_social_factura || '',
+    clinic_id: patient.clinic_id || '',
   })
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -88,6 +92,23 @@ export default function EditPatientModal({ patient, onClose }) {
               <input className="input" value={form.direccion} onChange={e => set('direccion', e.target.value)} />
             </div>
           </div>
+
+          {/* Consultorio */}
+          {clinics.length > 0 && (
+            <div className="pt-2 border-t border-slate-100">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Consultorio</p>
+              <div className="flex flex-wrap gap-2">
+                {clinics.map(c => (
+                  <button key={c.id} type="button" onClick={() => set('clinic_id', c.id)}
+                    className={cn('px-4 py-1.5 rounded-full text-sm font-medium border transition-colors',
+                      form.clinic_id === c.id ? 'text-white border-transparent' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50')}
+                    style={form.clinic_id === c.id ? { background: c.color } : {}}>
+                    {c.nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Datos fiscales */}
           <div className="pt-2 border-t border-slate-100">
