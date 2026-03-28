@@ -81,7 +81,8 @@ export default function NewAppointmentModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 overflow-y-auto" onClick={onClose}>
+      <div className="flex min-h-full items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
@@ -198,6 +199,7 @@ export default function NewAppointmentModal({
             </button>
           </div>
         </form>
+      </div>
       </div>
     </div>
   )
