@@ -192,7 +192,7 @@ function VideoCard({ apt, onStart, onCopy, copied, onComplete }) {
 }
 
 /* ── Video call modal (embedded Jitsi + patient sidebar) ── */
-function VideoCallModal({ apt, onClose }) {
+function VideoCallModal({ apt, onClose, onComplete }) {
   const [sidebar, setSidebar] = useState(false)
   const p              = apt.patients || {}
   const edad           = calcEdad(p.fecha_nacimiento)
@@ -229,11 +229,11 @@ function VideoCallModal({ apt, onClose }) {
             {sidebar ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
           </button>
           <button
-            onClick={onClose}
+            onClick={() => { onComplete?.(apt.id); onClose() }}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold transition-colors"
           >
             <PhoneOff className="w-3.5 h-3.5" />
-            Terminar
+            Finalizar videoconsulta
           </button>
         </div>
       </div>
@@ -535,6 +535,7 @@ export default function ConsultationsVideoPage() {
         <VideoCallModal
           apt={activeCall}
           onClose={() => setActiveCall(null)}
+          onComplete={completeApt}
         />,
         document.body
       )}
