@@ -10,7 +10,7 @@ import {
 import { cn } from '../utils'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer,
+  ResponsiveContainer, AreaChart, Area,
 } from 'recharts'
 
 function greeting() {
@@ -53,7 +53,8 @@ export default function DashboardPage() {
   const navigate   = useNavigate()
   const { doctor } = useAuthStore()
   const { clinics, activeClinic, setActiveClinic } = useClinicStore()
-  const [stats, setStats]           = useState({ pacientes: 0, citasHoy: 0, consultasMes: 0, videoHoy: 0, ingresosMes: 0 })
+  const [stats, setStats]           = useState({ pacientes: 0, citasHoy: 0, consultasMes: 0, videoHoy: 0, ingresosMes: 0, nuevosPatsMes: 0, porCobrar: 0 })
+  const [revenueData, setRevenueData] = useState([])
   const [citasHoy, setCitasHoy]     = useState([])
   const [recentPats, setRecentPats] = useState([])
   const [proximasCitas, setProximasCitas] = useState([])
@@ -83,6 +84,9 @@ export default function DashboardPage() {
         { data: invoicesMes },
         { data: appts6m },
         { data: consults6m },
+        { count: nuevosPats },
+        { data: pendingInvs },
+        { data: paidInvs6m },
       ] = await Promise.all([
         supabase.from('patients').select('*', { count: 'exact', head: true }).eq('activo', true),
         supabase.from('consultations').select('*', { count: 'exact', head: true }).gte('fecha', startMon.toISOString()),
@@ -114,13 +118,18 @@ export default function DashboardPage() {
         supabase.from('consultations')
           .select('fecha')
           .gte('fecha', start6m.toISOString()),
+        supabase.from('patients').select('*', { count: 'exact', head: true })
+          .eq('activo', true).gte('created_at', startMon.toISOString()),
+        supabase.from('invoices').select('total').eq('estado', 'pendiente'),
+        supabase.from('invoices').select('total, fecha').gte('fecha', start6m.toISOString()).eq('estado', 'timbrada'),
       ])
 
       const citasHoyList = apptHoy || []
       const videoHoy     = citasHoyList.filter(a => a.tipo === 'videoconsulta').length
       const ingresosMes  = (invoicesMes || []).reduce((s, i) => s + (i.total || 0), 0)
 
-      setStats({ pacientes: pacientes || 0, citasHoy: citasHoyList.length, consultasMes: consMes || 0, videoHoy, ingresosMes })
+      const porCobrar = (pendingInvs || []).reduce((s, i) => s + (i.total || 0), 0)
+      setStats({ pacientes: pacientes || 0, citasHoy: citasHoyList.length, consultasMes: consMes || 0, videoHoy, ingresosMes, nuevosPatsMes: nuevosPats || 0, porCobrar })
       setCitasHoy(citasHoyList)
       setRecentPats(latestPats || [])
       setProximasCitas(proximas || [])
@@ -141,6 +150,19 @@ export default function DashboardPage() {
         if (mesMap[key]) mesMap[key].citas++
       })
       setChartData(Object.values(mesMap))
+
+      // Revenue chart
+      const revMap = {}
+      for (let i = 5; i >= 0; i--) {
+        const d   = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const key = `${d.getFullYear()}-${d.getMonth()}`
+        revMap[key] = { mes: d.toLocaleDateString('es-MX', { month: 'short', year: '2-digit' }), ingresos: 0 }
+      }
+      ;(paidInvs6m || []).forEach(inv => {
+        const d = new Date(inv.fecha); const key = `${d.getFullYear()}-${d.getMonth()}`
+        if (revMap[key]) revMap[key].ingresos += inv.total || 0
+      })
+      setRevenueData(Object.values(revMap))
 
     } finally {
       setLoading(false)
@@ -198,43 +220,86 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Stats — 5 cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard label="Pacientes"          value={loading ? '—' : stats.pacientes}    icon={Users}         color="bg-blue-50 text-blue-600"     onClick={() => navigate('/pacientes')} />
-        <StatCard label="Citas hoy"          value={loading ? '—' : stats.citasHoy}     icon={Calendar}      color="bg-emerald-50 text-emerald-600" onClick={() => navigate('/agenda')} />
-        <StatCard label="Consultas este mes" value={loading ? '—' : stats.consultasMes} icon={ClipboardList} color="bg-violet-50 text-violet-600" />
-        <StatCard label="Videoconsultas hoy" value={loading ? '—' : stats.videoHoy}     icon={Video}         color="bg-indigo-50 text-indigo-600"   onClick={() => navigate('/consultas')} />
-        <StatCard label="Ingresos del mes"   value={loading ? '—' : fmt(stats.ingresosMes)} icon={DollarSign} color="bg-green-50 text-green-600" valueColor="text-green-700" onClick={() => navigate('/facturacion')} />
+      {/* Stats — 7 cards en 2 filas */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <StatCard label="Pacientes"          value={loading ? '—' : stats.pacientes}       icon={Users}         color="bg-blue-50 text-blue-600"      onClick={() => navigate('/pacientes')} />
+        <StatCard label="Citas hoy"          value={loading ? '—' : stats.citasHoy}        icon={Calendar}      color="bg-emerald-50 text-emerald-600" onClick={() => navigate('/agenda')} />
+        <StatCard label="Consultas este mes" value={loading ? '—' : stats.consultasMes}    icon={ClipboardList} color="bg-violet-50 text-violet-600" />
+        <StatCard label="Videoconsultas hoy" value={loading ? '—' : stats.videoHoy}        icon={Video}         color="bg-indigo-50 text-indigo-600"   onClick={() => navigate('/consultas')} />
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <StatCard label="Ingresos del mes"   value={loading ? '—' : fmt(stats.ingresosMes)}  icon={DollarSign} color="bg-green-50 text-green-600"  valueColor="text-green-700" onClick={() => navigate('/facturacion')} />
+        <StatCard label="Por cobrar"         value={loading ? '—' : fmt(stats.porCobrar)}    icon={Clock}      color="bg-amber-50 text-amber-600"  valueColor="text-amber-600" onClick={() => navigate('/facturacion')} />
+        <StatCard label="Nuevos este mes"    value={loading ? '—' : stats.nuevosPatsMes}     icon={Users}      color="bg-pink-50 text-pink-600"    onClick={() => navigate('/pacientes')} />
       </div>
 
-      {/* Activity chart */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-slate-400" />
-            <h2 className="font-semibold text-slate-700">Actividad últimos 6 meses</h2>
+      {/* Charts row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Activity chart */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-slate-400" />
+              <h2 className="font-semibold text-slate-700">Actividad últimos 6 meses</h2>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-slate-400">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-sky-400 inline-block" />Consultas</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-violet-400 inline-block" />Citas</span>
+            </div>
           </div>
-          <div className="flex items-center gap-4 text-xs text-slate-400">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-sky-400 inline-block" />Consultas</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-violet-400 inline-block" />Citas</span>
-          </div>
+          {loading ? (
+            <div className="h-52 flex items-center justify-center">
+              <div className="w-6 h-6 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={chartData} barGap={4}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} allowDecimals={false} />
+                <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13 }} />
+                <Bar dataKey="consultas" name="Consultas" fill="#0ea5e9" radius={[4,4,0,0]} />
+                <Bar dataKey="citas"     name="Citas"     fill="#8b5cf6" radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
-        {loading ? (
-          <div className="h-52 flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
+
+        {/* Revenue chart */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-slate-400" />
+              <h2 className="font-semibold text-slate-700">Ingresos últimos 6 meses</h2>
+            </div>
+            <span className="text-xs text-slate-400">Solo cobros pagados</span>
           </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#94a3b8' }} />
-              <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} allowDecimals={false} />
-              <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13 }} />
-              <Bar dataKey="consultas" name="Consultas" fill="#0ea5e9" radius={[4,4,0,0]} />
-              <Bar dataKey="citas"     name="Citas"     fill="#8b5cf6" radius={[4,4,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
+          {loading ? (
+            <div className="h-52 flex items-center justify-center">
+              <div className="w-6 h-6 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={revenueData}>
+                <defs>
+                  <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#10b981" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }}
+                  tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`} />
+                <Tooltip
+                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13 }}
+                  formatter={v => [new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(v), 'Ingresos']} />
+                <Area dataKey="ingresos" name="Ingresos" stroke="#10b981" strokeWidth={2}
+                  fill="url(#revGrad)" dot={{ fill: '#10b981', r: 3 }} activeDot={{ r: 5 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
 
       {/* Citas hoy + Próximos 7 días */}

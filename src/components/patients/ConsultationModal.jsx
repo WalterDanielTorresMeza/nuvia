@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -9,7 +9,7 @@ import {
   X, Save, CheckCircle, Loader2, Plus, Trash2,
   Bold, Italic, List, ListOrdered,
   AlertCircle, Calendar, BookOpen, ChevronDown, ChevronUp,
-  Stethoscope, Pill, FileText, Activity, ClipboardList
+  Stethoscope, Pill, FileText, Activity, ClipboardList, Printer
 } from 'lucide-react'
 import { cn } from '../../utils'
 import BodyMap from './BodyMap'
@@ -80,6 +80,152 @@ function MedRow({ med, onChange, onDelete }) {
   )
 }
 
+/* ── Receta imprimible ── */
+function PrintReceta({ form, patient, doctor, onClose }) {
+  const [docFull, setDocFull] = useState(null)
+  useEffect(() => {
+    if (!doctor?.id) return
+    supabase.from('doctors')
+      .select('nombre, apellidos, especialidad, cedula_profesional, telefono')
+      .eq('id', doctor.id).single()
+      .then(({ data }) => { if (data) setDocFull(data) })
+  }, [doctor?.id])
+  const doc   = docFull || doctor
+  const fecha = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
+  const meds  = form.medicamentos_receta || []
+  const edad  = patient.fecha_nacimiento
+    ? `${new Date().getFullYear() - new Date(patient.fecha_nacimiento).getFullYear()} años` : ''
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-[60] p-4 overflow-y-auto"
+      onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-4" onClick={e => e.stopPropagation()}>
+        {/* Toolbar */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 print:hidden">
+          <h2 className="font-bold text-slate-800">Receta médica</h2>
+          <div className="flex items-center gap-2">
+            <button onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-semibold transition-colors">
+              <Printer className="w-4 h-4" /> Imprimir / PDF
+            </button>
+            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+              <X className="w-5 h-5 text-slate-400" />
+            </button>
+          </div>
+        </div>
+
+        {/* Printable content */}
+        <div className="p-8 space-y-5 print:p-4">
+          {/* Doctor */}
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">Dr. {doc?.nombre} {doc?.apellidos}</h1>
+              {doc?.especialidad && <p className="text-sm text-slate-500">{doc.especialidad}</p>}
+              {doc?.cedula_profesional && <p className="text-sm text-slate-500">Cédula Prof.: {doc.cedula_profesional}</p>}
+              {doc?.telefono && <p className="text-sm text-slate-500">Tel.: {doc.telefono}</p>}
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-bold text-slate-600 uppercase tracking-wider">Receta Médica</p>
+              <p className="text-sm text-slate-500 mt-1">{fecha}</p>
+            </div>
+          </div>
+
+          <div className="h-px bg-slate-200" />
+
+          {/* Paciente */}
+          <div className="bg-slate-50 rounded-xl p-4">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Paciente</p>
+            <p className="font-semibold text-slate-800">{patient.nombre} {patient.apellidos}</p>
+            <div className="flex gap-4 mt-1 flex-wrap">
+              {edad && <p className="text-sm text-slate-500">Edad: {edad}</p>}
+              {patient.sexo && <p className="text-sm text-slate-500">Sexo: {patient.sexo === 'M' ? 'Masculino' : patient.sexo === 'F' ? 'Femenino' : patient.sexo}</p>}
+              {patient.tipo_sangre && <p className="text-sm text-red-500 font-medium">Tipo sangre: {patient.tipo_sangre}</p>}
+            </div>
+          </div>
+
+          {/* Diagnóstico */}
+          {(form.diagnostico || form.diagnostico_cie10) && (
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Diagnóstico</p>
+              <p className="text-slate-700">
+                {form.diagnostico_cie10 && <span className="font-mono text-slate-400 mr-2 text-sm">{form.diagnostico_cie10}</span>}
+                {form.diagnostico}
+              </p>
+            </div>
+          )}
+
+          <div className="h-px bg-slate-200" />
+
+          {/* Medicamentos */}
+          <div>
+            <div className="flex items-baseline gap-3 mb-4">
+              <span className="text-4xl font-serif text-slate-600 leading-none">℞</span>
+              <p className="text-sm font-semibold text-slate-500">Medicamentos prescritos</p>
+            </div>
+            {meds.length === 0 ? (
+              <p className="text-sm text-slate-400 italic">Sin medicamentos prescritos en esta consulta.</p>
+            ) : (
+              <div className="space-y-4">
+                {meds.map((med, i) => (
+                  <div key={i} className="flex gap-3 pb-3 border-b border-slate-100 last:border-0">
+                    <span className="text-sm font-bold text-slate-400 mt-0.5 w-5 text-right flex-shrink-0">{i + 1}.</span>
+                    <div>
+                      <p className="font-semibold text-slate-800">{med.nombre || '—'}</p>
+                      <p className="text-sm text-slate-600 mt-0.5">
+                        {[med.dosis, med.frecuencia, med.duracion ? `por ${med.duracion} días` : null]
+                          .filter(Boolean).join(' · ')}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Indicaciones */}
+          {form.instrucciones_medicas && !['<p></p>', '<p><br></p>'].includes(form.instrucciones_medicas) && (
+            <>
+              <div className="h-px bg-slate-200" />
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Indicaciones</p>
+                <div className="text-sm text-slate-700 prose prose-sm max-w-none"
+                  dangerouslySetInnerHTML={{ __html: form.instrucciones_medicas }} />
+              </div>
+            </>
+          )}
+
+          {/* Próxima cita */}
+          {form.proxima_cita && (
+            <div className="flex items-center gap-2 text-sm bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
+              <Calendar className="w-4 h-4 text-blue-400 flex-shrink-0" />
+              <p className="text-blue-700">
+                <span className="font-semibold">Próxima cita:</span>{' '}
+                {new Date(form.proxima_cita + 'T12:00:00').toLocaleDateString('es-MX',
+                  { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
+            </div>
+          )}
+
+          {/* Firma */}
+          <div className="flex justify-end pt-6">
+            <div className="text-center min-w-[180px]">
+              <div className="border-t border-slate-800 pt-2">
+                <p className="text-sm font-medium text-slate-700">Dr. {doc?.nombre} {doc?.apellidos}</p>
+                {doc?.cedula_profesional && <p className="text-xs text-slate-400">Céd. {doc.cedula_profesional}</p>}
+                <p className="text-xs text-slate-400">Firma y sello</p>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-xs text-center text-slate-300 border-t border-slate-100 pt-3">
+            Generado por Nuvia · Sistema de Gestión Médica
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ══════════════════════════════════════════════ */
 export default function ConsultationModal({ patient, consultation, onClose, onSaved }) {
   const { doctor } = useAuthStore()
@@ -89,6 +235,7 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
   const [consultId, setConsultId] = useState(consultation?.id || null)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [showReceta, setShowReceta] = useState(false)
 
   const [form, setForm] = useState({
     motivo:                  consultation?.motivo || '',
@@ -234,6 +381,10 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
                 ⚠ {saveError}
               </span>
             )}
+            <button onClick={() => setShowReceta(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border bg-white border-slate-200 text-slate-700 hover:bg-slate-50 transition-all">
+              <Printer className="w-4 h-4" /> Receta
+            </button>
             <button onClick={handleSave} disabled={saving}
               className={cn('flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-all',
                 saved ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50')}>
@@ -435,6 +586,9 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
 
         </aside>
       </div>
+      {showReceta && (
+        <PrintReceta form={form} patient={patient} doctor={doctor} onClose={() => setShowReceta(false)} />
+      )}
     </div>
   )
 }
