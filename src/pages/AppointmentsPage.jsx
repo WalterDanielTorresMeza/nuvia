@@ -159,13 +159,6 @@ function MonthCalendar({ year, month, apts, selectedDay, onSelectDay, onPrev, on
         ))}
       </div>
 
-      <div className="flex gap-4 justify-center px-4 py-2.5 bg-slate-50/80 border-t border-slate-100">
-        {[['presencial','bg-sky-400','Presencial'],['videoconsulta','bg-violet-400','Video'],['urgencia','bg-red-400','Urgencia']].map(([t,c,l]) => (
-          <span key={t} className="flex items-center gap-1 text-[10px] text-slate-400">
-            <span className={cn('w-1.5 h-1.5 rounded-full', c)} />{l}
-          </span>
-        ))}
-      </div>
     </div>
   )
 }
