@@ -22,6 +22,7 @@ import { calcEdad, calcIMC, clasificarIMC, formatFecha, formatFechaHora, cn } fr
 import EditPatientModal from '../components/patients/EditPatientModal'
 import ConsultationModal from '../components/patients/ConsultationModal'
 import NewAppointmentModal from '../components/appointments/NewAppointmentModal'
+import { useClinicStore } from '../store/clinicStore'
 
 /* ─── mini helpers ──────────────────────────────────────────────── */
 function Card({ children, className = '' }) {
@@ -144,6 +145,7 @@ export default function PatientDetailPage() {
   const navigate = useNavigate()
   const { fetchPatient, currentPatient, loading, updateMedication, deletePatient } = usePatientsStore()
   const { doctor } = useAuthStore()
+  const { clinics } = useClinicStore()
 
   const [showEdit, setShowEdit]             = useState(false)
   const [openConsult, setOpenConsult]       = useState(null)
@@ -386,6 +388,12 @@ export default function PatientDetailPage() {
                                 {c.diagnostico && (
                                   <span className="text-xs text-slate-400 truncate max-w-[200px]">{c.diagnostico}</span>
                                 )}
+                                {(() => {
+                                  const clinic = clinics.find(cl => cl.id === c.clinic_id)
+                                  return clinic
+                                    ? <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: clinic.color + '22', color: clinic.color }}>📍 {clinic.nombre}</span>
+                                    : <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-50 text-amber-600">⚠ Sin consultorio</span>
+                                })()}
                               </div>
                             </div>
                             <span className={cn(

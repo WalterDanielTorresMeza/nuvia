@@ -574,6 +574,10 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
   }
 
   const handleSave = async () => {
+    if (clinics.length > 0 && !form.clinic_id) {
+      setSaveError('Selecciona un consultorio antes de guardar.')
+      return
+    }
     setSaving(true)
     setSaveError('')
     const err = await saveData()
@@ -586,11 +590,14 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
   }
 
   const handleFinish = async () => {
+    if (clinics.length > 0 && !form.clinic_id) {
+      setSaveError('Selecciona un consultorio antes de finalizar.')
+      return
+    }
     setFinishing(true)
     setSaveError('')
     const err = await saveData('terminada')
     if (err) { setSaveError(err); setFinishing(false); return }
-    // Create appointment for next visit if date is set
     await syncProximaCita()
     setFinishing(false)
     onSaved?.()
