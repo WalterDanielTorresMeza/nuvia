@@ -202,29 +202,25 @@ Deno.serve(async (req) => {
 </body>
 </html>`
 
-    // Send via Resend
-    const resendRes = await fetch('https://api.resend.com/emails', {
+    // Send via Brevo
+    const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('RESEND_API_KEY')}`,
+        'api-key': Deno.env.get('BREVO_API_KEY')!,
       },
       body: JSON.stringify({
-        from:    `${Deno.env.get('SENDER_NAME') ?? 'Nuvia Gestión Médica'} <${Deno.env.get('SENDER_EMAIL')}>`,
-        to:      [patient.email],
-        subject: `✅ Cita confirmada — ${formatDateMX(start)} ${formatTimeMX(start)}`,
-        html:    htmlBody,
-        attachments: [{
-          filename:    'cita.ics',
-          content:     icsBase64,
-          content_type: 'text/calendar; method=REQUEST',
-        }],
+        sender:      { name: Deno.env.get('SENDER_NAME') ?? 'Nuvia Gestión Médica', email: Deno.env.get('SENDER_EMAIL') },
+        to:          [{ email: patient.email, name: patientName }],
+        subject:     `✅ Cita confirmada — ${formatDateMX(start)} ${formatTimeMX(start)}`,
+        htmlContent: htmlBody,
+        attachment:  [{ content: icsBase64, name: 'cita.ics' }],
       }),
     })
 
-    if (!resendRes.ok) {
-      const err = await resendRes.text()
-      throw new Error(`Resend error: ${err}`)
+    if (!brevoRes.ok) {
+      const err = await brevoRes.text()
+      throw new Error(`Brevo error: ${err}`)
     }
 
     return new Response(JSON.stringify({ sent: true, to: patient.email }), {
