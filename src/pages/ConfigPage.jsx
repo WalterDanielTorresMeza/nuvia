@@ -104,15 +104,24 @@ function ClinicsSection({ doctorId }) {
 
   const fetchClinics = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('clinics')
-      .select('*')
-      .eq('doctor_id', doctorId)
-      .eq('activo', true)
-      .order('principal', { ascending: false })
-      .order('created_at')
-    setClinics(data || [])
-    setLoading(false)
+    try {
+      const { data, error } = await supabase
+        .from('clinics')
+        .select('*')
+        .eq('doctor_id', doctorId)
+        .eq('activo', true)
+        .order('principal', { ascending: false })
+        .order('created_at')
+      if (error) {
+        if (error.code === '42P01') setClinicErr('Ejecuta la migración 008_clinics_combined.sql en Supabase.')
+        else setClinicErr(error.message)
+      }
+      setClinics(data || [])
+    } catch {
+      setClinicErr('Error al cargar consultorios.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSave = async (form) => {

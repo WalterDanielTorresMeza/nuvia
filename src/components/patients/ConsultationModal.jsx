@@ -5,6 +5,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/authStore'
 import { usePatientsStore } from '../../store/patientsStore'
+import { useClinicStore } from '../../store/clinicStore'
 import {
   X, Save, CheckCircle, Loader2, Plus, Trash2,
   Bold, Italic, List, ListOrdered,
@@ -430,6 +431,7 @@ function PrintReceta({ form, patient, doctor, onClose }) {
 /* ══════════════════════════════════════════════ */
 export default function ConsultationModal({ patient, consultation, onClose, onSaved }) {
   const { doctor } = useAuthStore()
+  const { clinics, activeClinic } = useClinicStore()
   usePatientsStore()
   const [saving, setSaving] = useState(false)
   const [finishing, setFinishing] = useState(false)
@@ -453,7 +455,16 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
     medicamentos_receta:     consultation?.medicamentos_receta || [],
     proxima_cita:            consultation?.proxima_cita || '',
     estado:                  consultation?.estado || 'activa',
+    clinic_id:               consultation?.clinic_id || activeClinic?.id || '',
   })
+
+  // Sync clinic_id when activeClinic loads (only for new consultations)
+  useEffect(() => {
+    if (!consultation?.id && activeClinic?.id && !form.clinic_id) {
+      set('clinic_id', activeClinic.id)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeClinic?.id])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -492,6 +503,7 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
       estado,
       patient_id: patient.id,
       doctor_id:  doctorId,
+      clinic_id:  form.clinic_id || null,
     }
     if (!payload.proxima_cita) delete payload.proxima_cita
     if (consultId) {
@@ -505,12 +517,23 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
     return null
   }
 
-  // When proxima_cita is set, create/update appointment in Agenda
+  // When proxima_cita is set, create appointment in Agenda (only once per date)
   const syncProximaCita = async () => {
     if (!form.proxima_cita) return
     const doctorId = await resolveDoctorId()
     if (!doctorId) return
-    // Build datetime: date at 09:00 local
+    // Avoid duplicate: check if appointment already exists for this patient on that date
+    const dayStart = `${form.proxima_cita}T00:00:00`
+    const dayEnd   = `${form.proxima_cita}T23:59:59`
+    const { data: existing } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('patient_id', patient.id)
+      .eq('doctor_id', doctorId)
+      .gte('fecha_hora', dayStart)
+      .lte('fecha_hora', dayEnd)
+      .limit(1)
+    if (existing?.length > 0) return // ya existe
     const fechaHora = new Date(`${form.proxima_cita}T09:00:00`).toISOString()
     await supabase.from('appointments').insert([{
       patient_id:   patient.id,
@@ -520,6 +543,7 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
       tipo:         'presencial',
       estado:       'programada',
       motivo:       form.motivo ? `Seguimiento: ${form.motivo}` : 'Próxima cita',
+      clinic_id:    form.clinic_id || null,
     }])
   }
 
@@ -527,6 +551,7 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
     setSaving(true)
     setSaveError('')
     const err = await saveData()
+    if (!err) await syncProximaCita()
     setSaving(false)
     if (err) { setSaveError(err); return }
     setSaved(true)
@@ -584,6 +609,19 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
               form.estado === 'terminada' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')}>
               {form.estado === 'terminada' ? '✓ Terminada' : '● Consulta activa'}
             </span>
+            {/* Selector de consultorio */}
+            {clinics.length > 0 && (
+              <select
+                value={form.clinic_id}
+                onChange={e => set('clinic_id', e.target.value)}
+                className="text-xs border border-slate-200 rounded-xl px-2.5 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-primary-300 transition-colors"
+              >
+                <option value="">Sin consultorio</option>
+                {clinics.map(c => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Right: actions */}
@@ -658,7 +696,12 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
               <div>
                 <label className="label">Código CIE-10</label>
                 <CIE10Input value={form.diagnostico_cie10} onChange={v => set('diagnostico_cie10', v)} />
-                <label className="label mt-3">Próxima cita</label>
+                <label className="label mt-3 flex items-center gap-1.5">
+                  Próxima cita
+                  <span className="text-[10px] font-normal text-primary-500 normal-case tracking-normal">
+                    → se agenda automáticamente
+                  </span>
+                </label>
                 <input type="date" className="input text-sm" value={form.proxima_cita} onChange={e => set('proxima_cita', e.target.value)} />
               </div>
             </div>
