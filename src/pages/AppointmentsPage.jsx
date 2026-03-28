@@ -17,11 +17,11 @@ import { cn } from '../utils'
 /* ─── Constants ─── */
 const ESTADOS = ['programada','confirmada','completada','cancelada','no_asistio']
 const ESTADO_STYLE = {
-  programada: { cls: 'bg-blue-100 text-blue-700',  label: 'Programada' },
-  confirmada: { cls: 'bg-green-100 text-green-700', label: 'Confirmada' },
-  completada: { cls: 'bg-slate-100 text-slate-600', label: 'Completada' },
-  cancelada:  { cls: 'bg-red-100 text-red-600',     label: 'Cancelada'  },
-  no_asistio: { cls: 'bg-amber-100 text-amber-700', label: 'No asistió' },
+  programada: { cls: 'bg-blue-100 text-blue-700',     label: 'Programada', row: '',                       dot: 'bg-blue-400',   desc: 'Cita agendada, pendiente de confirmar' },
+  confirmada: { cls: 'bg-emerald-100 text-emerald-700',label: 'Confirmada', row: '',                       dot: 'bg-emerald-400',desc: 'Paciente confirmó su asistencia' },
+  completada: { cls: 'bg-teal-100 text-teal-700',     label: 'Completada', row: 'bg-teal-50/40',           dot: 'bg-teal-400',   desc: 'Consulta realizada y concluida' },
+  cancelada:  { cls: 'bg-red-100 text-red-600',       label: 'Cancelada',  row: 'bg-red-50/50',            dot: 'bg-red-400',    desc: 'Cita cancelada por médico o paciente' },
+  no_asistio: { cls: 'bg-amber-100 text-amber-700',   label: 'No asistió', row: 'bg-amber-50/50',          dot: 'bg-amber-400',  desc: 'El paciente no se presentó a la cita' },
 }
 const TIPO_ICON = {
   presencial:    <FaStethoscope className="w-3.5 h-3.5" />,
@@ -193,9 +193,10 @@ function AptRow({ apt, onNavigate, onUpdateEstado, clinics }) {
 
   return (
     <div className={cn(
-      'bg-white rounded-2xl border border-slate-200 border-l-4 p-4 flex items-center gap-4',
-      'hover:shadow-sm hover:border-r-primary-200 hover:border-t-primary-200 hover:border-b-primary-200 transition-all group',
-      TIPO_BORDER[apt.tipo] || 'border-l-slate-200'
+      'rounded-2xl border border-slate-200 border-l-4 p-4 flex items-center gap-4',
+      'hover:shadow-sm transition-all group',
+      TIPO_BORDER[apt.tipo] || 'border-l-slate-200',
+      st.row || 'bg-white'
     )}>
       <div className="flex-shrink-0 text-center w-14">
         <p className="text-base font-bold text-slate-800">{hora}</p>
@@ -441,6 +442,18 @@ export default function AppointmentsPage() {
       {/* ── LIST VIEW ── */}
       {view === 'lista' && (
         <>
+          {/* Status legend */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs">
+            <span className="font-semibold text-slate-500 mr-1">Leyenda:</span>
+            {Object.values(ESTADO_STYLE).map(s => (
+              <span key={s.label} className="flex items-center gap-1.5 text-slate-600" title={s.desc}>
+                <span className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', s.dot)} />
+                <span className="font-medium">{s.label}</span>
+                <span className="text-slate-400 hidden sm:inline">— {s.desc}</span>
+              </span>
+            ))}
+          </div>
+
           <div className="flex gap-2 flex-wrap">
             {FILTERS.map(({ val, label }) => (
               <button key={val} onClick={() => setFilter(val)}
