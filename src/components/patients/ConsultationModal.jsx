@@ -87,7 +87,12 @@ function CIE10Input({ value, onChange }) {
   const [query, setQuery]       = useState(value || '')
   const [open, setOpen]         = useState(false)
   const [results, setResults]   = useState([])
-  const containerRef            = useRef(null)
+  const [selectedDesc, setSelectedDesc] = useState(() => {
+    if (!value) return ''
+    const found = CIE10.find(item => item.code === value)
+    return found?.desc || ''
+  })
+  const containerRef = useRef(null)
 
   useEffect(() => {
     const q = query.trim().toLowerCase()
@@ -110,6 +115,7 @@ function CIE10Input({ value, onChange }) {
 
   const select = item => {
     setQuery(item.code)
+    setSelectedDesc(item.desc)
     onChange(item.code)
     setOpen(false)
   }
@@ -120,10 +126,15 @@ function CIE10Input({ value, onChange }) {
         className="input font-mono text-sm"
         placeholder="E11.9, J06.9… o buscar por nombre"
         value={query}
-        onChange={e => { setQuery(e.target.value); onChange(e.target.value.toUpperCase()) }}
+        onChange={e => { setQuery(e.target.value); setSelectedDesc(''); onChange(e.target.value.toUpperCase()) }}
         onFocus={() => results.length > 0 && setOpen(true)}
         autoComplete="off"
       />
+      {selectedDesc && (
+        <p className="mt-1 text-xs text-teal-700 bg-teal-50 border border-teal-100 rounded-lg px-2.5 py-1.5 leading-snug">
+          {selectedDesc}
+        </p>
+      )}
       {open && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
           {results.map(item => (
@@ -143,11 +154,25 @@ function CIE10Input({ value, onChange }) {
   )
 }
 
+/* ── Lista de estudios (compartida) ── */
+const ESTUDIOS_IMAGEN = [
+  'Ultrasonido abdominal completo', 'Ultrasonido pélvico / ginecológico',
+  'Ultrasonido obstétrico', 'Ultrasonido renal y vías urinarias',
+  'Ultrasonido tiroideo', 'Ultrasonido Doppler vascular',
+  'Ultrasonido musculoesquelético',
+  'Tomografía de cráneo (TC)', 'Tomografía de tórax (TC)',
+  'Tomografía de abdomen y pelvis (TC)', 'Tomografía de columna (TC)',
+  'Resonancia magnética (RM) de cerebro', 'Resonancia magnética (RM) de columna',
+  'Resonancia magnética (RM) de rodilla/cadera',
+  'Angiotomografía coronaria (AngioTC)', 'Angiotomografía pulmonar (AngioTC)',
+  'Angiografía cerebral',
+  'Radiografía de tórax (Rx)', 'Radiografía ósea / articular (Rx)',
+  'Densitometría ósea (DEXA)', 'Gammagrafía / Medicina nuclear',
+]
+
 /* ── Solicitud de estudios de imagen imprimible ── */
 function PrintUltraSound({ form, patient, doctor, onClose }) {
   const [docFull, setDocFull] = useState(null)
-  const [selected, setSelected] = useState([])
-  const [otro, setOtro] = useState('')
   useEffect(() => {
     if (!doctor?.id) return
     supabase.from('doctors')
@@ -155,40 +180,12 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
       .eq('id', doctor.id).single()
       .then(({ data }) => { if (data) setDocFull(data) })
   }, [doctor?.id])
-  const doc   = docFull || doctor
-  const toggle = (label) => setSelected(s => s.includes(label) ? s.filter(x => x !== label) : [...s, label])
-  const fecha = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
-  const edad  = patient.fecha_nacimiento
+  const doc      = docFull || doctor
+  const selected = form.estudios_imagen || []
+  const otro     = form.estudios_otro || ''
+  const fecha    = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
+  const edad     = patient.fecha_nacimiento
     ? `${new Date().getFullYear() - new Date(patient.fecha_nacimiento).getFullYear()} años` : ''
-
-  const estudios = [
-    // Ultrasonidos
-    { label: 'Ultrasonido abdominal completo' },
-    { label: 'Ultrasonido pélvico / ginecológico' },
-    { label: 'Ultrasonido obstétrico' },
-    { label: 'Ultrasonido renal y vías urinarias' },
-    { label: 'Ultrasonido tiroideo' },
-    { label: 'Ultrasonido Doppler vascular' },
-    { label: 'Ultrasonido musculoesquelético' },
-    // Tomografías
-    { label: 'Tomografía de cráneo (TC)' },
-    { label: 'Tomografía de tórax (TC)' },
-    { label: 'Tomografía de abdomen y pelvis (TC)' },
-    { label: 'Tomografía de columna (TC)' },
-    // Resonancias
-    { label: 'Resonancia magnética (RM) de cerebro' },
-    { label: 'Resonancia magnética (RM) de columna' },
-    { label: 'Resonancia magnética (RM) de rodilla/cadera' },
-    // Angiotomografía / Angiografía
-    { label: 'Angiotomografía coronaria (AngioTC)' },
-    { label: 'Angiotomografía pulmonar (AngioTC)' },
-    { label: 'Angiografía cerebral' },
-    // Otros
-    { label: 'Radiografía de tórax (Rx)' },
-    { label: 'Radiografía ósea / articular (Rx)' },
-    { label: 'Densitometría ósea (DEXA)' },
-    { label: 'Gammagrafía / Medicina nuclear' },
-  ]
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-[60] p-4 overflow-y-auto"
@@ -236,33 +233,13 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
             </div>
           </div>
 
-          {/* Estudios a realizar — selección interactiva (se oculta al imprimir) */}
-          <div className="print:hidden">
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Selecciona los estudios solicitados</p>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-              {estudios.map(({ label }) => (
-                <label key={label} className="flex items-center gap-2.5 cursor-pointer group">
-                  <input type="checkbox" checked={selected.includes(label)} onChange={() => toggle(label)}
-                    className="w-3.5 h-3.5 accent-teal-600 flex-shrink-0" />
-                  <span className={`text-xs ${selected.includes(label) ? 'text-teal-700 font-semibold' : 'text-slate-600'}`}>{label}</span>
-                </label>
-              ))}
-            </div>
-            <div className="flex items-center gap-2.5 mt-2">
-              <input type="checkbox" checked={!!otro} readOnly className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="text-xs text-slate-500">Otro:</span>
-              <input type="text" value={otro} onChange={e => setOtro(e.target.value)}
-                placeholder="Especificar..." className="text-xs border-b border-slate-300 outline-none flex-1 px-1" />
-            </div>
-          </div>
-
-          {/* Solo impresión: muestra únicamente los seleccionados */}
-          <div className="hidden print:block">
+          {/* Estudios seleccionados */}
+          <div>
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Estudio(s) solicitado(s)</p>
             {selected.length === 0 && !otro ? (
-              <p className="text-xs text-slate-400 italic">Sin estudios seleccionados</p>
+              <p className="text-sm text-slate-400 italic">Sin estudios seleccionados</p>
             ) : (
-              <ul className="space-y-1.5">
+              <ul className="space-y-2">
                 {selected.map(label => (
                   <li key={label} className="flex items-center gap-2.5">
                     <div className="w-3.5 h-3.5 border-2 border-slate-800 rounded flex-shrink-0 flex items-center justify-center">
@@ -503,6 +480,8 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
     proxima_cita:            consultation?.proxima_cita || '',
     estado:                  consultation?.estado || 'activa',
     clinic_id:               consultation?.clinic_id || activeClinic?.id || '',
+    estudios_imagen:         consultation?.estudios_imagen || [],
+    estudios_otro:           consultation?.estudios_otro || '',
   })
 
   // Sync clinic_id when activeClinic loads (only for new consultations)
@@ -763,8 +742,34 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
                   value={form.procedimientos} onChange={e => set('procedimientos', e.target.value)} />
               </div>
             </div>
+
+            {/* Selección de estudios de imagen */}
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <label className="label mb-3">Estudios de imagen a solicitar</label>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                {ESTUDIOS_IMAGEN.map(label => (
+                  <label key={label} className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox"
+                      checked={(form.estudios_imagen || []).includes(label)}
+                      onChange={() => set('estudios_imagen',
+                        (form.estudios_imagen || []).includes(label)
+                          ? (form.estudios_imagen || []).filter(x => x !== label)
+                          : [...(form.estudios_imagen || []), label]
+                      )}
+                      className="w-3.5 h-3.5 accent-teal-600 flex-shrink-0" />
+                    <span className={`text-xs ${(form.estudios_imagen || []).includes(label) ? 'text-teal-700 font-semibold' : 'text-slate-600'}`}>{label}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs text-slate-500 flex-shrink-0">Otro:</span>
+                <input type="text" value={form.estudios_otro || ''} onChange={e => set('estudios_otro', e.target.value)}
+                  placeholder="Especificar..." className="input text-xs py-1.5 flex-1" />
+              </div>
+            </div>
+
             <button onClick={() => setShowUltra(true)}
-              className="mt-3 flex items-center gap-2 text-sm text-teal-600 hover:text-teal-700 font-medium transition-colors">
+              className="mt-4 flex items-center gap-2 text-sm text-teal-600 hover:text-teal-700 font-medium transition-colors">
               <Printer className="w-4 h-4" /> Generar solicitud de estudios de imagen
             </button>
           </Section>
