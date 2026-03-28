@@ -89,3 +89,20 @@
 .page-enter {
   animation: fadeUp 0.2s ease-out forwards;
 }
+
+/* ── Print styles (receta / solicitudes) ── */
+@media print {
+  body > * { visibility: hidden !important; }
+  .print-area,
+  .print-area * { visibility: visible !important; }
+  .print-area {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 24px !important;
+    background: white !important;
+    z-index: 9999 !important;
+  }
+}

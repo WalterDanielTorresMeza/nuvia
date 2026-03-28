@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../utils'
 import BodyMap from './BodyMap'
+import { CIE10 } from '../../data/cie10'
 
 /* ── Mini rich-text toolbar ── */
 function RichEditor({ editor }) {
@@ -70,12 +71,212 @@ function MedRow({ med, onChange, onDelete }) {
   return (
     <div className="grid grid-cols-12 gap-2 items-center">
       <input className="col-span-4 input text-sm py-2" placeholder="Medicamento" value={med.nombre} onChange={e => onChange({ ...med, nombre: e.target.value })} />
-      <input className="col-span-3 input text-sm py-2" placeholder="Dosis" value={med.dosis} onChange={e => onChange({ ...med, dosis: e.target.value })} />
+      <input className="col-span-2 input text-sm py-2" placeholder="Dosis" value={med.dosis} onChange={e => onChange({ ...med, dosis: e.target.value })} />
       <input className="col-span-3 input text-sm py-2" placeholder="Frecuencia" value={med.frecuencia} onChange={e => onChange({ ...med, frecuencia: e.target.value })} />
-      <input className="col-span-1 input text-sm py-2 text-center" placeholder="Días" value={med.duracion} onChange={e => onChange({ ...med, duracion: e.target.value })} />
+      <input className="col-span-2 input text-sm py-2 text-center" placeholder="Días" value={med.duracion} onChange={e => onChange({ ...med, duracion: e.target.value })} />
       <button onClick={onDelete} className="col-span-1 flex justify-center text-slate-300 hover:text-red-400 transition-colors">
         <Trash2 className="w-4 h-4" />
       </button>
+    </div>
+  )
+}
+
+/* ── CIE-10 autocomplete input ── */
+function CIE10Input({ value, onChange }) {
+  const [query, setQuery]       = useState(value || '')
+  const [open, setOpen]         = useState(false)
+  const [results, setResults]   = useState([])
+  const containerRef            = useRef(null)
+
+  useEffect(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) { setResults([]); return }
+    const matches = CIE10.filter(item =>
+      item.code.toLowerCase().startsWith(q) ||
+      item.desc.toLowerCase().includes(q)
+    ).slice(0, 8)
+    setResults(matches)
+    setOpen(matches.length > 0)
+  }, [query])
+
+  useEffect(() => {
+    const handler = e => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const select = item => {
+    setQuery(item.code)
+    onChange(item.code)
+    setOpen(false)
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <input
+        className="input font-mono text-sm"
+        placeholder="E11.9, J06.9… o buscar por nombre"
+        value={query}
+        onChange={e => { setQuery(e.target.value); onChange(e.target.value.toUpperCase()) }}
+        onFocus={() => results.length > 0 && setOpen(true)}
+        autoComplete="off"
+      />
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+          {results.map(item => (
+            <button
+              key={item.code}
+              type="button"
+              onMouseDown={() => select(item)}
+              className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-primary-50 transition-colors"
+            >
+              <span className="font-mono text-xs text-primary-600 font-bold mt-0.5 w-14 flex-shrink-0">{item.code}</span>
+              <span className="text-xs text-slate-700 leading-snug">{item.desc}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Solicitud de ultrasonido imprimible ── */
+function PrintUltraSound({ form, patient, doctor, onClose }) {
+  const [docFull, setDocFull] = useState(null)
+  useEffect(() => {
+    if (!doctor?.id) return
+    supabase.from('doctors')
+      .select('nombre, apellidos, especialidad, cedula_profesional, telefono')
+      .eq('id', doctor.id).single()
+      .then(({ data }) => { if (data) setDocFull(data) })
+  }, [doctor?.id])
+  const doc   = docFull || doctor
+  const fecha = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
+  const edad  = patient.fecha_nacimiento
+    ? `${new Date().getFullYear() - new Date(patient.fecha_nacimiento).getFullYear()} años` : ''
+
+  const estudios = [
+    { label: 'Abdomen completo', checked: false },
+    { label: 'Abdomen superior', checked: false },
+    { label: 'Pélvico / Ginecológico', checked: false },
+    { label: 'Obstétrico', checked: false },
+    { label: 'Renal y vías urinarias', checked: false },
+    { label: 'Tiroides', checked: false },
+    { label: 'Partes blandas / Tejidos', checked: false },
+    { label: 'Hepático / Hígado y vías biliares', checked: false },
+    { label: 'Doppler vascular', checked: false },
+    { label: 'Musculoesquelético', checked: false },
+  ]
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-[60] p-4 overflow-y-auto"
+      onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-4" onClick={e => e.stopPropagation()}>
+        {/* Toolbar */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 print:hidden">
+          <h2 className="font-bold text-slate-800">Solicitud de Ultrasonido</h2>
+          <div className="flex items-center gap-2">
+            <button onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-semibold transition-colors">
+              <Printer className="w-4 h-4" /> Imprimir / PDF
+            </button>
+            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+              <X className="w-5 h-5 text-slate-400" />
+            </button>
+          </div>
+        </div>
+
+        {/* Printable content */}
+        <div className="print-area p-8 space-y-5 print:p-4">
+          {/* Header */}
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">Dr. {doc?.nombre} {doc?.apellidos}</h1>
+              {doc?.especialidad    && <p className="text-sm text-slate-500">{doc.especialidad}</p>}
+              {doc?.cedula_profesional && <p className="text-sm text-slate-500">Cédula Prof.: {doc.cedula_profesional}</p>}
+              {doc?.telefono        && <p className="text-sm text-slate-500">Tel.: {doc.telefono}</p>}
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-bold text-slate-600 uppercase tracking-wider">Solicitud de Ultrasonido</p>
+              <p className="text-sm text-slate-500 mt-1">{fecha}</p>
+            </div>
+          </div>
+
+          <div className="h-px bg-slate-200" />
+
+          {/* Paciente */}
+          <div className="bg-slate-50 rounded-xl p-4">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Paciente</p>
+            <p className="font-semibold text-slate-800">{patient.nombre} {patient.apellidos}</p>
+            <div className="flex gap-4 mt-1 flex-wrap">
+              {edad         && <p className="text-sm text-slate-500">Edad: {edad}</p>}
+              {patient.sexo && <p className="text-sm text-slate-500">Sexo: {patient.sexo === 'M' ? 'Masculino' : patient.sexo === 'F' ? 'Femenino' : patient.sexo}</p>}
+            </div>
+          </div>
+
+          {/* Estudios a realizar */}
+          <div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Estudio(s) solicitado(s)</p>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-2.5">
+              {estudios.map(({ label }) => (
+                <div key={label} className="flex items-center gap-3">
+                  <div className="w-4 h-4 border-2 border-slate-400 rounded flex-shrink-0" />
+                  <span className="text-sm text-slate-700">{label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 mt-2.5">
+              <div className="w-4 h-4 border-2 border-slate-400 rounded flex-shrink-0" />
+              <span className="text-sm text-slate-500 flex-1">Otro:&nbsp;
+                <span className="inline-block border-b border-slate-300 w-48" />
+              </span>
+            </div>
+          </div>
+
+          <div className="h-px bg-slate-200" />
+
+          {/* Indicación clínica */}
+          <div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Indicación clínica / Diagnóstico presuntivo</p>
+            {(form.diagnostico || form.diagnostico_cie10) ? (
+              <p className="text-sm text-slate-700">
+                {form.diagnostico_cie10 && <span className="font-mono text-slate-400 mr-2">{form.diagnostico_cie10}</span>}
+                {form.diagnostico}
+              </p>
+            ) : (
+              <div className="space-y-1">
+                <div className="border-b border-slate-200 h-5 w-full" />
+                <div className="border-b border-slate-200 h-5 w-full" />
+              </div>
+            )}
+          </div>
+
+          {/* Solicitudes adicionales del médico */}
+          {form.solicitudes_lab && (
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Indicaciones adicionales</p>
+              <p className="text-sm text-slate-700 whitespace-pre-line">{form.solicitudes_lab}</p>
+            </div>
+          )}
+
+          {/* Firma */}
+          <div className="flex justify-end pt-6">
+            <div className="text-center min-w-[180px]">
+              <div className="border-t border-slate-800 pt-2">
+                <p className="text-sm font-medium text-slate-700">Dr. {doc?.nombre} {doc?.apellidos}</p>
+                {doc?.cedula_profesional && <p className="text-xs text-slate-400">Céd. {doc.cedula_profesional}</p>}
+                <p className="text-xs text-slate-400">Firma y sello</p>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-xs text-center text-slate-300 border-t border-slate-100 pt-3">
+            Generado por Nuvia · Sistema de Gestión Médica
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -115,7 +316,7 @@ function PrintReceta({ form, patient, doctor, onClose }) {
         </div>
 
         {/* Printable content */}
-        <div className="p-8 space-y-5 print:p-4">
+        <div className="print-area p-8 space-y-5 print:p-4">
           {/* Doctor */}
           <div className="flex items-start justify-between">
             <div>
@@ -236,6 +437,7 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [showReceta, setShowReceta] = useState(false)
+  const [showUltra,  setShowUltra]  = useState(false)
 
   const [form, setForm] = useState({
     motivo:                  consultation?.motivo || '',
@@ -280,7 +482,17 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
 
   const saveData = async (estado = form.estado) => {
     const doctorId = await resolveDoctorId()
-    const payload = { ...form, estado, patient_id: patient.id, doctor_id: doctorId }
+    // Read directly from editor instances to avoid stale closure issues with async state
+    const payload = {
+      ...form,
+      notas_padecimiento:    editorNotas?.getHTML()  ?? form.notas_padecimiento,
+      exploracion_fisica:    editorExamen?.getHTML() ?? form.exploracion_fisica,
+      instrucciones_medicas: editorIndic?.getHTML()  ?? form.instrucciones_medicas,
+      plan_tratamiento:      editorPlan?.getHTML()   ?? form.plan_tratamiento,
+      estado,
+      patient_id: patient.id,
+      doctor_id:  doctorId,
+    }
     if (!payload.proxima_cita) delete payload.proxima_cita
     if (consultId) {
       const { error } = await supabase.from('consultations').update(payload).eq('id', consultId)
@@ -445,8 +657,7 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
               </div>
               <div>
                 <label className="label">Código CIE-10</label>
-                <input className="input font-mono text-sm" placeholder="E11.9, J06.9..."
-                  value={form.diagnostico_cie10} onChange={e => set('diagnostico_cie10', e.target.value.toUpperCase())} />
+                <CIE10Input value={form.diagnostico_cie10} onChange={v => set('diagnostico_cie10', v)} />
                 <label className="label mt-3">Próxima cita</label>
                 <input type="date" className="input text-sm" value={form.proxima_cita} onChange={e => set('proxima_cita', e.target.value)} />
               </div>
@@ -469,16 +680,21 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
                   value={form.procedimientos} onChange={e => set('procedimientos', e.target.value)} />
               </div>
             </div>
+            <button onClick={() => setShowUltra(true)}
+              className="mt-3 flex items-center gap-2 text-sm text-teal-600 hover:text-teal-700 font-medium transition-colors">
+              <Printer className="w-4 h-4" /> Generar solicitud de ultrasonido
+            </button>
           </Section>
 
           {/* Receta */}
           <Section icon={Pill} title="Receta médica" color="text-red-500">
             {form.medicamentos_receta.length > 0 && (
               <div className="grid grid-cols-12 gap-2 mb-2 px-1">
-                {['Medicamento','Dosis','Frecuencia','Días',''].map((h, i) => (
-                  <span key={i} className={cn('text-xs text-slate-400 font-semibold',
-                    i === 0 ? 'col-span-4' : i === 4 ? 'col-span-1' : 'col-span-3')}>{h}</span>
-                ))}
+                <span className="col-span-4 text-xs text-slate-400 font-semibold">Medicamento</span>
+                <span className="col-span-2 text-xs text-slate-400 font-semibold">Dosis</span>
+                <span className="col-span-3 text-xs text-slate-400 font-semibold">Frecuencia</span>
+                <span className="col-span-2 text-xs text-slate-400 font-semibold">Días</span>
+                <span className="col-span-1" />
               </div>
             )}
             <div className="space-y-2">
@@ -588,6 +804,9 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
       </div>
       {showReceta && (
         <PrintReceta form={form} patient={patient} doctor={doctor} onClose={() => setShowReceta(false)} />
+      )}
+      {showUltra && (
+        <PrintUltraSound form={form} patient={patient} doctor={doctor} onClose={() => setShowUltra(false)} />
       )}
     </div>
   )
