@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { calcEdad } from '../utils'
@@ -529,12 +530,13 @@ export default function ConsultationsVideoPage() {
         )}
       </div>
 
-      {/* Video call fullscreen modal */}
-      {activeCall && (
+      {/* Video call fullscreen modal — portal to body to escape CSS transform stacking context */}
+      {activeCall && createPortal(
         <VideoCallModal
           apt={activeCall}
           onClose={() => setActiveCall(null)}
-        />
+        />,
+        document.body
       )}
 
       {/* New videoconsulta modal */}
