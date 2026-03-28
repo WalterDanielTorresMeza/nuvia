@@ -59,4 +59,9 @@ export const useAppointmentsStore = create((set, get) => ({
     }))
     await supabase.from('appointments').update({ estado }).eq('id', id)
   },
+
+  deleteAppointment: async (id) => {
+    set(state => ({ appointments: state.appointments.filter(a => a.id !== id) }))
+    await supabase.from('appointments').delete().eq('id', id)
+  },
 }))

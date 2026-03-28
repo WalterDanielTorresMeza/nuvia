@@ -9,7 +9,7 @@ import NewAppointmentModal from '../components/appointments/NewAppointmentModal'
 import {
   Plus, Loader2, Calendar, X,
   ChevronRight, ChevronLeft, LayoutList, CalendarDays,
-  Building2, Download,
+  Building2, Download, Trash2,
 } from 'lucide-react'
 import { FaStethoscope, FaVideo, FaTriangleExclamation } from 'react-icons/fa6'
 import { cn } from '../utils'
@@ -164,7 +164,7 @@ function MonthCalendar({ year, month, apts, selectedDay, onSelectDay, onPrev, on
 }
 
 /* ─── Appointment row (shared) ─── */
-function AptRow({ apt, onNavigate, onUpdateEstado, clinics }) {
+function AptRow({ apt, onNavigate, onUpdateEstado, onDelete, clinics }) {
   const st      = ESTADO_STYLE[apt.estado] || ESTADO_STYLE.programada
   const hora    = new Date(apt.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
   const horaFin = new Date(new Date(apt.fecha_hora).getTime() + apt.duracion_min * 60000)
@@ -208,6 +208,12 @@ function AptRow({ apt, onNavigate, onUpdateEstado, clinics }) {
         className="flex-shrink-0 p-1.5 text-slate-300 hover:text-primary-500 hover:bg-primary-50 rounded-lg transition-colors">
         <ChevronRight className="w-4 h-4" />
       </button>
+      <button
+        onClick={e => { e.stopPropagation(); if (window.confirm('¿Eliminar esta cita? Esta acción no se puede deshacer.')) onDelete(apt.id) }}
+        className="flex-shrink-0 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+        title="Eliminar cita">
+        <Trash2 className="w-4 h-4" />
+      </button>
       <select value={apt.estado} onChange={e => onUpdateEstado(apt.id, e.target.value)}
         onClick={e => e.stopPropagation()}
         className="text-xs border border-slate-200 rounded-xl px-2.5 py-1.5 bg-white text-slate-600 flex-shrink-0 focus:outline-none focus:border-primary-300">
@@ -222,7 +228,7 @@ export default function AppointmentsPage() {
   const navigate = useNavigate()
   const { patients, fetchPatients }                                = usePatientsStore()
   const { doctor }                                                 = useAuthStore()
-  const { appointments, loading, fetchAppointments, updateEstado } = useAppointmentsStore()
+  const { appointments, loading, fetchAppointments, updateEstado, deleteAppointment } = useAppointmentsStore()
   const { clinics, activeClinic, fetchClinics, setActiveClinic }   = useClinicStore()
 
   const [showModal, setShowModal]       = useState(false)
@@ -306,6 +312,11 @@ export default function AppointmentsPage() {
   const handleUpdateEstado = (id, estado) => {
     updateEstado(id, estado)
     setCalApts(prev => prev.map(a => a.id === id ? { ...a, estado } : a))
+  }
+
+  const handleDelete = (id) => {
+    deleteAppointment(id)
+    setCalApts(prev => prev.filter(a => a.id !== id))
   }
 
   const StatusFilterBar = () => (
@@ -439,7 +450,7 @@ export default function AppointmentsPage() {
                     dayApts.map(apt => (
                       <AptRow key={apt.id} apt={apt} clinics={clinics}
                         onNavigate={id => navigate(`/pacientes/${id}`)}
-                        onUpdateEstado={handleUpdateEstado} />
+                        onUpdateEstado={handleUpdateEstado} onDelete={handleDelete} />
                     ))
                   )}
                 </div>
@@ -484,7 +495,7 @@ export default function AppointmentsPage() {
                     {apts.map(apt => (
                       <AptRow key={apt.id} apt={apt} clinics={clinics}
                         onNavigate={id => navigate(`/pacientes/${id}`)}
-                        onUpdateEstado={handleUpdateEstado} />
+                        onUpdateEstado={handleUpdateEstado} onDelete={handleDelete} />
                     ))}
                   </div>
                 </div>
