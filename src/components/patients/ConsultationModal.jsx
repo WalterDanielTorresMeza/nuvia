@@ -635,19 +635,22 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
               form.estado === 'terminada' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')}>
               {form.estado === 'terminada' ? '✓ Terminada' : '● Consulta activa'}
             </span>
-            {/* Selector de consultorio */}
-            {clinics.length > 0 && (
-              <select
-                value={form.clinic_id}
-                onChange={e => set('clinic_id', e.target.value)}
-                className="text-xs border border-slate-200 rounded-xl px-2.5 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-primary-300 transition-colors"
-              >
-                <option value="">Sin consultorio</option>
-                {clinics.map(c => (
-                  <option key={c.id} value={c.id}>{c.nombre}</option>
-                ))}
-              </select>
-            )}
+            {/* Selector de consultorio — siempre visible */}
+            <select
+              value={form.clinic_id}
+              onChange={e => set('clinic_id', e.target.value)}
+              className={cn(
+                'text-xs border rounded-xl px-2.5 py-1.5 bg-white focus:outline-none transition-colors',
+                form.clinic_id
+                  ? 'border-slate-200 text-slate-600 focus:border-primary-300'
+                  : 'border-amber-300 text-amber-700 bg-amber-50 focus:border-amber-400'
+              )}
+            >
+              <option value="">⚠ Sin consultorio</option>
+              {clinics.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
           </div>
 
           {/* Right: actions */}
