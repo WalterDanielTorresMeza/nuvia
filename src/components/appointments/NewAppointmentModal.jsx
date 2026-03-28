@@ -53,6 +53,14 @@ export default function NewAppointmentModal({
     ) || null)
   }
 
+  const sendConfirmationEmail = (appointmentId) => {
+    if (!appointmentId) return
+    // Fire-and-forget — no esperamos para no bloquear el cierre del modal
+    supabase.functions.invoke('send-appointment-email', {
+      body: { appointment_id: appointmentId },
+    }).catch(err => console.warn('Email no enviado:', err))
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.patient_id) { setError('Selecciona un paciente.'); return }
@@ -80,18 +88,20 @@ export default function NewAppointmentModal({
     }
     if (form.clinic_id) payload.clinic_id = form.clinic_id
 
-    const { error: dbErr } = await supabase.from('appointments').insert([payload])
+    const { data: inserted, error: dbErr } = await supabase.from('appointments').insert([payload]).select('id').single()
     setSaving(false)
     if (dbErr) {
       // If clinic_id column doesn't exist yet, retry without it
       if (dbErr.message.includes('clinic_id')) {
         delete payload.clinic_id
-        const { error: retryErr } = await supabase.from('appointments').insert([payload])
+        const { data: retryData, error: retryErr } = await supabase.from('appointments').insert([payload]).select('id').single()
         if (retryErr) { setError(retryErr.message); return }
+        sendConfirmationEmail(retryData?.id)
         onSaved?.(); onClose(); return
       }
       setError(dbErr.message); return
     }
+    sendConfirmationEmail(inserted?.id)
     onSaved?.(); onClose()
   }
 
