@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { usePatientsStore } from '../store/patientsStore'
@@ -108,8 +108,8 @@ function NuevoCobro({ patients, clinics = [], onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-emerald-50 rounded-xl flex items-center justify-center">
@@ -248,8 +248,8 @@ function PreFactura({ invoice, doctorData, onClose }) {
   const fecha   = new Date(invoice.fecha).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-4" onClick={e => e.stopPropagation()}>
 
         {/* Toolbar (no imprime) */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 print:hidden">
@@ -367,21 +367,25 @@ export default function BillingPage() {
   const [preFactura, setPreFactura] = useState(null)
   const [tab, setTab]               = useState('todos')
   const [doctorData, setDoctorData] = useState(null)
+  const loadedOnce                  = useRef(false)
 
-  useEffect(() => { if (patients.length === 0) fetchPatients() }, [])
-  useEffect(() => { fetchInvoices() }, [])
+  useEffect(() => {
+    if (patients.length === 0) fetchPatients()
+    fetchInvoices()
+  }, [])
   useEffect(() => { if (doctor?.id) fetchDoctorData() }, [doctor?.id])
 
   const fetchInvoices = async () => {
-    if (invoices.length === 0) setLoading(true)
+    if (!loadedOnce.current) setLoading(true)
     try {
       const { data } = await supabase
         .from('invoices')
-        .select('*, patients(nombre, apellidos)')
+        .select('id, folio, concepto, total, subtotal, iva, estado, metodo_pago, rfc_receptor, razon_social, requiere_factura, fecha, clinic_id, patients(nombre, apellidos)')
         .order('fecha', { ascending: false })
       setInvoices(data || [])
     } finally {
       setLoading(false)
+      loadedOnce.current = true
     }
   }
 
@@ -533,7 +537,7 @@ export default function BillingPage() {
       )}
 
       {/* Tabla */}
-      {loading && invoices.length === 0 ? (
+      {loading && !loadedOnce.current ? (
         <div className="flex justify-center py-24">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
         </div>
