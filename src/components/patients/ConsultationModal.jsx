@@ -532,15 +532,28 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
       clinic_id:  form.clinic_id || null,
     }
     if (!payload.proxima_cita) delete payload.proxima_cita
-    if (consultId) {
-      const { error } = await supabase.from('consultations').update(payload).eq('id', consultId)
-      if (error) return error.message
-      return null
+
+    const trySave = async (p) => {
+      if (consultId) {
+        const { error } = await supabase.from('consultations').update(p).eq('id', consultId)
+        return error
+      }
+      const { data, error } = await supabase.from('consultations').insert([p]).select().single()
+      if (data) setConsultId(data.id)
+      return error
     }
-    const { data, error } = await supabase.from('consultations').insert([payload]).select().single()
-    if (error) return error.message
-    if (data) setConsultId(data.id)
-    return null
+
+    let error = await trySave(payload)
+
+    // Si faltan columnas nuevas, reintenta sin ellas
+    if (error?.message?.includes('estudios_imagen') || error?.message?.includes('estudios_otro')) {
+      const fallback = { ...payload }
+      delete fallback.estudios_imagen
+      delete fallback.estudios_otro
+      error = await trySave(fallback)
+    }
+
+    return error ? error.message : null
   }
 
   // When proxima_cita is set, create appointment in Agenda (only once per date)
