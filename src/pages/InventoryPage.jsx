@@ -2,8 +2,7 @@ import { useEffect, useRef, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import {
-  Plus, Search, X, Loader2, AlertTriangle, Package,
-  TrendingUp, TrendingDown, RotateCcw, Edit2,
+  Plus, Search, X, Loader2, AlertTriangle, Package, Edit2, RefreshCw,
 } from 'lucide-react'
 import { cn } from '../utils'
 
@@ -29,20 +28,35 @@ function stockStatus(item) {
 }
 
 /* ══ Item modal (crear / editar) ══ */
+const genSKU = () => 'PROD-' + Math.random().toString(36).substring(2, 8).toUpperCase()
+
 function ItemModal({ item, onClose, onSaved }) {
   const { doctor } = useAuthStore()
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
+  const [skuTipo, setSkuTipo] = useState(item?.sku ? 'barcode' : 'auto')
   const [form, setForm]     = useState({
-    nombre:          item?.nombre           || '',
-    categoria:       item?.categoria        || 'medicamento',
-    descripcion:     item?.descripcion      || '',
-    unidad:          item?.unidad           || 'piezas',
-    stock_actual:    item?.stock_actual     ?? 0,
-    stock_minimo:    item?.stock_minimo     ?? 5,
-    precio_unitario: item?.precio_unitario  ?? '',
+    nombre:                 item?.nombre                 || '',
+    categoria:              item?.categoria              || 'medicamento',
+    descripcion:            item?.descripcion            || '',
+    unidad:                 item?.unidad                 || 'piezas',
+    stock_actual:           item?.stock_actual           ?? 0,
+    stock_minimo:           item?.stock_minimo           ?? 5,
+    precio_unitario:        item?.precio_unitario        ?? '',
+    sku:                    item?.sku                    || genSKU(),
+    marca:                  item?.marca                  || '',
+    marca_propia:           item?.marca_propia           ?? false,
+    caracteristicas:        item?.caracteristicas        || '',
+    requiere_receta:        item?.requiere_receta        ?? false,
+    medicamento_controlado: item?.medicamento_controlado ?? false,
+    ingredientes:           item?.ingredientes           || '',
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleSkuTipo = (tipo) => {
+    setSkuTipo(tipo)
+    if (tipo === 'auto') set('sku', genSKU())
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -59,6 +73,7 @@ function ItemModal({ item, onClose, onSaved }) {
       stock_actual:    parseInt(form.stock_actual) || 0,
       stock_minimo:    parseInt(form.stock_minimo) || 0,
       precio_unitario: form.precio_unitario !== '' ? parseFloat(form.precio_unitario) : null,
+      sku:             form.sku.trim() || null,
     }
     const { error: err } = item?.id
       ? await supabase.from('inventory_items').update(payload).eq('id', item.id)
@@ -70,7 +85,7 @@ function ItemModal({ item, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl my-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-violet-50 rounded-xl flex items-center justify-center">
@@ -83,13 +98,44 @@ function ItemModal({ item, onClose, onSaved }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+
+          {/* Nombre */}
           <div>
             <label className="label">Nombre *</label>
             <input className="input" placeholder="Ej. Amoxicilina 500mg, Guantes de látex..."
               value={form.nombre} onChange={e => set('nombre', e.target.value)} required />
           </div>
 
+          {/* SKU */}
+          <div>
+            <label className="label">SKU</label>
+            <div className="flex gap-2 mb-2">
+              {[{ id: 'auto', label: 'Auto-generar' }, { id: 'barcode', label: 'Código de barras' }].map(op => (
+                <button key={op.id} type="button" onClick={() => handleSkuTipo(op.id)}
+                  className={cn('px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all',
+                    skuTipo === op.id ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50')}>
+                  {op.label}
+                </button>
+              ))}
+            </div>
+            <div className="relative">
+              <input className={cn('input text-sm font-mono', skuTipo === 'auto' && 'bg-slate-50 text-slate-400')}
+                placeholder="Escanea o escribe el código de barras"
+                value={form.sku}
+                readOnly={skuTipo === 'auto'}
+                onChange={e => set('sku', e.target.value)} />
+              {skuTipo === 'auto' && (
+                <button type="button" onClick={() => set('sku', genSKU())}
+                  title="Regenerar"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-violet-500 transition-colors">
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Categoría + Unidad */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Categoría</label>
@@ -104,6 +150,38 @@ function ItemModal({ item, onClose, onSaved }) {
             </div>
           </div>
 
+          {/* Marca */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Marca</label>
+              <input className="input" placeholder="Pfizer, Bayer, Marca del Ahorro..."
+                value={form.marca} onChange={e => set('marca', e.target.value)} />
+            </div>
+            <div className="flex flex-col justify-end">
+              <label className="flex items-center gap-2 cursor-pointer select-none py-2.5">
+                <input type="checkbox" checked={form.marca_propia}
+                  onChange={e => set('marca_propia', e.target.checked)}
+                  className="w-4 h-4 rounded accent-violet-600" />
+                <span className="text-sm text-slate-700">Marca propia</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Ingredientes */}
+          <div>
+            <label className="label">Ingredientes / Principio activo</label>
+            <input className="input" placeholder="Paracetamol, Ibuprofeno..."
+              value={form.ingredientes} onChange={e => set('ingredientes', e.target.value)} />
+          </div>
+
+          {/* Características */}
+          <div>
+            <label className="label">Características</label>
+            <input className="input" placeholder="Frasco con 20 tabletas, 500mg..."
+              value={form.caracteristicas} onChange={e => set('caracteristicas', e.target.value)} />
+          </div>
+
+          {/* Stock y precio */}
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="label">Stock actual</label>
@@ -125,8 +203,25 @@ function ItemModal({ item, onClose, onSaved }) {
             </div>
           </div>
 
+          {/* Checkboxes especiales */}
+          <div className="grid grid-cols-2 gap-4 bg-slate-50 rounded-xl p-4">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={form.requiere_receta}
+                onChange={e => set('requiere_receta', e.target.checked)}
+                className="w-4 h-4 rounded accent-violet-600" />
+              <span className="text-sm text-slate-700">Requiere receta</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={form.medicamento_controlado}
+                onChange={e => set('medicamento_controlado', e.target.checked)}
+                className="w-4 h-4 rounded accent-violet-600" />
+              <span className="text-sm text-slate-700">Medicamento controlado</span>
+            </label>
+          </div>
+
+          {/* Descripción */}
           <div>
-            <label className="label">Descripción</label>
+            <label className="label">Descripción / Notas</label>
             <textarea rows={2} className="input resize-none text-sm" placeholder="Notas adicionales..."
               value={form.descripcion} onChange={e => set('descripcion', e.target.value)} />
           </div>
@@ -154,127 +249,6 @@ function ItemModal({ item, onClose, onSaved }) {
   )
 }
 
-/* ══ Movimiento modal (entrada / salida / ajuste) ══ */
-function MovementModal({ item, tipo: tipoInicial, onClose, onSaved }) {
-  const { doctor } = useAuthStore()
-  const [tipo, setTipo]     = useState(tipoInicial || 'entrada')
-  const [cantidad, setCant] = useState('')
-  const [nota, setNota]     = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError]   = useState('')
-
-  const TIPOS = [
-    { id: 'entrada',  label: 'Entrada',  icon: TrendingUp,   color: 'text-green-600',  bg: 'bg-green-50 border-green-200 text-green-700' },
-    { id: 'salida',   label: 'Salida',   icon: TrendingDown, color: 'text-red-600',    bg: 'bg-red-50 border-red-200 text-red-700'       },
-    { id: 'ajuste',   label: 'Ajuste',   icon: RotateCcw,    color: 'text-amber-600',  bg: 'bg-amber-50 border-amber-200 text-amber-700' },
-  ]
-  const tipoData = TIPOS.find(t => t.id === tipo)
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    const cant = parseInt(cantidad)
-    if (!cant || cant <= 0) { setError('Ingresa una cantidad válida.'); return }
-    setSaving(true); setError('')
-    let did = doctor?.id
-    if (!did) {
-      const { data } = await supabase.from('doctors').select('id').single()
-      did = data?.id
-    }
-    // Compute new stock
-    const delta    = tipo === 'salida' ? -cant : cant
-    const newStock = tipo === 'ajuste' ? cant : Math.max(0, item.stock_actual + delta)
-    const movCant  = tipo === 'ajuste' ? cant - item.stock_actual : (tipo === 'salida' ? -cant : cant)
-
-    const [{ error: e1 }, { error: e2 }] = await Promise.all([
-      supabase.from('inventory_items').update({ stock_actual: newStock }).eq('id', item.id),
-      supabase.from('inventory_movements').insert([{
-        item_id: item.id, doctor_id: did, tipo, cantidad: movCant, nota: nota.trim() || null,
-      }]),
-    ])
-    setSaving(false)
-    if (e1 || e2) { setError((e1 || e2).message); return }
-    onSaved()
-  }
-
-  const resultingStock = (() => {
-    const cant = parseInt(cantidad) || 0
-    if (!cant) return item.stock_actual
-    if (tipo === 'ajuste') return cant
-    if (tipo === 'salida') return Math.max(0, item.stock_actual - cant)
-    return item.stock_actual + cant
-  })()
-
-  return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md my-4" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div>
-            <h2 className="text-base font-bold text-slate-800">{item.nombre}</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Stock actual: <span className="font-semibold text-slate-600">{item.stock_actual} {item.unidad}</span></p>
-          </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
-            <X className="w-5 h-5 text-slate-400" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Tipo selector */}
-          <div className="grid grid-cols-3 gap-2">
-            {TIPOS.map(t => (
-              <button key={t.id} type="button" onClick={() => { setTipo(t.id); setError('') }}
-                className={cn('flex flex-col items-center gap-1.5 p-3 rounded-xl border text-xs font-semibold transition-all',
-                  tipo === t.id ? t.bg : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50')}>
-                <t.icon className={cn('w-4 h-4', tipo === t.id ? '' : t.color)} />
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          <div>
-            <label className="label">
-              {tipo === 'ajuste' ? 'Nuevo stock total' : 'Cantidad'}
-            </label>
-            <input type="number" min="1" className="input text-lg font-semibold" placeholder="0"
-              value={cantidad} onChange={e => { setCant(e.target.value); setError('') }} autoFocus required />
-          </div>
-
-          {/* Preview */}
-          {cantidad && (
-            <div className={cn('flex items-center justify-between px-4 py-3 rounded-xl border text-sm', tipoData?.bg)}>
-              <span className="font-medium">Stock resultante</span>
-              <span className="font-bold text-lg">{resultingStock} {item.unidad}</span>
-            </div>
-          )}
-
-          <div>
-            <label className="label">Nota (opcional)</label>
-            <input className="input text-sm" placeholder="Ej. Compra a proveedor, uso en consulta..."
-              value={nota} onChange={e => setNota(e.target.value)} />
-          </div>
-
-          {error && (
-            <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
-              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />{error}
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose}
-              className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors">
-              Cancelar
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
-              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-              {saving ? 'Guardando...' : 'Registrar'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
 /* ══════════════════════════════════════════════ */
 export default function InventoryPage() {
   const [items, setItems]   = useState([])
@@ -283,8 +257,7 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('')
   const [catFilter, setCatFilter] = useState('')
   const [showBajos, setShowBajos] = useState(false)
-  const [itemModal, setItemModal]   = useState(null)  // null | 'new' | item object
-  const [movModal, setMovModal]     = useState(null)  // null | { item, tipo }
+  const [itemModal, setItemModal] = useState(null)  // null | 'new' | item object
   const loadedOnce = useRef(false)
 
   useEffect(() => { fetchItems() }, [])
@@ -481,23 +454,11 @@ export default function InventoryPage() {
                         {item.precio_unitario != null ? fmt(item.precio_unitario) : '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => setMovModal({ item, tipo: 'entrada' })}
-                            title="Entrada"
-                            className="flex items-center gap-1 text-xs text-green-600 hover:bg-green-50 px-2 py-1.5 rounded-lg transition-colors font-semibold">
-                            <TrendingUp className="w-3.5 h-3.5" /> +
-                          </button>
-                          <button onClick={() => setMovModal({ item, tipo: 'salida' })}
-                            title="Salida"
-                            className="flex items-center gap-1 text-xs text-red-500 hover:bg-red-50 px-2 py-1.5 rounded-lg transition-colors font-semibold">
-                            <TrendingDown className="w-3.5 h-3.5" /> −
-                          </button>
-                          <button onClick={() => setItemModal(item)}
-                            title="Editar"
-                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                        <button onClick={() => setItemModal(item)}
+                          title="Editar"
+                          className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
                       </td>
                     </tr>
                   )
@@ -518,14 +479,6 @@ export default function InventoryPage() {
           item={itemModal === 'new' ? null : itemModal}
           onClose={() => setItemModal(null)}
           onSaved={() => { setItemModal(null); fetchItems() }}
-        />
-      )}
-      {movModal && (
-        <MovementModal
-          item={movModal.item}
-          tipo={movModal.tipo}
-          onClose={() => setMovModal(null)}
-          onSaved={() => { setMovModal(null); fetchItems() }}
         />
       )}
     </div>
