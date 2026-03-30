@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore'
 import {
   Loader2, Save, Check, User, Stethoscope, Phone, Mail,
   Hash, Shield, MapPin, Building2, Plus, Pencil, Trash2,
-  Star, X, FileText,
+  Star, X, FileText, Lock,
 } from 'lucide-react'
 
 /* ── Preset colors for clinics ── */
@@ -380,6 +380,78 @@ function FiscalSection({ doctorId }) {
   )
 }
 
+/* ══ Sección PIN de acciones ══ */
+function PinSection({ doctorId }) {
+  const [pin, setPin]         = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [saving, setSaving]   = useState(false)
+  const [msg, setMsg]         = useState('')   // 'ok:...' | 'error:...'
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    if (pin.length !== 4)        { setMsg('error:El PIN debe tener exactamente 4 dígitos.'); return }
+    if (pin !== confirm)         { setMsg('error:Los PINs no coinciden.'); return }
+    setSaving(true); setMsg('')
+    const { error } = await supabase.from('doctors').update({ pin_acciones: pin }).eq('id', doctorId)
+    setSaving(false)
+    if (error) { setMsg(`error:${error.message}`); return }
+    setMsg('ok:PIN actualizado correctamente.')
+    setPin(''); setConfirm('')
+    setTimeout(() => setMsg(''), 3000)
+  }
+
+  const isError = msg.startsWith('error:')
+  const msgText = msg.replace(/^(ok|error):/, '')
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+        <Lock className="w-4 h-4 text-slate-400" />
+        <h2 className="font-semibold text-slate-700">PIN de acciones</h2>
+        <span className="text-xs text-slate-400 ml-1">Para proteger edición y eliminación de ventas</span>
+      </div>
+      <form onSubmit={handleSave} className="p-6 space-y-4">
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Este PIN de 4 dígitos se solicitará al intentar editar o eliminar registros de ventas.
+          Mantenlo privado para que solo tú puedas realizar estas acciones.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="label">Nuevo PIN (4 dígitos)</label>
+            <input
+              type="password" inputMode="numeric" maxLength={4}
+              className="input text-center text-xl font-bold tracking-[0.4em]"
+              placeholder="••••" value={pin}
+              onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setMsg('') }}
+            />
+          </div>
+          <div>
+            <label className="label">Confirmar PIN</label>
+            <input
+              type="password" inputMode="numeric" maxLength={4}
+              className="input text-center text-xl font-bold tracking-[0.4em]"
+              placeholder="••••" value={confirm}
+              onChange={e => { setConfirm(e.target.value.replace(/\D/g, '')); setMsg('') }}
+            />
+          </div>
+        </div>
+        {msg && (
+          <p className={`text-xs px-3 py-2 rounded-xl border ${isError ? 'bg-red-50 border-red-200 text-red-600' : 'bg-green-50 border-green-200 text-green-700'}`}>
+            {msgText}
+          </p>
+        )}
+        <div className="flex justify-end">
+          <button type="submit" disabled={saving || pin.length < 4}
+            className="flex items-center gap-2 px-6 py-2.5 bg-slate-700 hover:bg-slate-800 disabled:opacity-40 text-white rounded-xl text-sm font-semibold transition-colors">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+            {saving ? 'Guardando...' : 'Guardar PIN'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 /* ══════════════════════════════════════════ */
 export default function ConfigPage() {
   const { doctor, fetchDoctor } = useAuthStore()
@@ -525,6 +597,9 @@ export default function ConfigPage() {
           </div>
         </form>
       </div>
+
+      {/* ── PIN de acciones ── */}
+      {doctor?.id && <PinSection doctorId={doctor.id} />}
 
       {/* App info */}
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-center">

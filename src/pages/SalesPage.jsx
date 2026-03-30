@@ -6,7 +6,7 @@ import { usePatientsStore } from '../store/patientsStore'
 import {
   ShoppingCart, Search, X, Loader2, AlertTriangle,
   Trash2, Printer, CreditCard, Banknote, Smartphone, Clock, Plus,
-  TrendingUp, Receipt, Calendar,
+  TrendingUp, Receipt, Calendar, Edit2, Lock,
 } from 'lucide-react'
 import { cn } from '../utils'
 
@@ -348,8 +348,117 @@ function SaleModal({ items, onClose, onSaved }) {
   )
 }
 
+/* ══ PIN Modal ══ */
+function PinModal({ doctorId, onSuccess, onCancel }) {
+  const [pin, setPin]       = useState('')
+  const [error, setError]   = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const verify = async () => {
+    if (pin.length < 4) { setError('Ingresa tu PIN de 4 dígitos'); return }
+    setLoading(true)
+    const { data } = await supabase.from('doctors').select('pin_acciones').eq('id', doctorId).single()
+    setLoading(false)
+    if (!data?.pin_acciones) {
+      setError('No tienes un PIN configurado. Ve a Configuración → Seguridad para crearlo.')
+      return
+    }
+    if (data.pin_acciones !== pin) { setError('PIN incorrecto'); setPin(''); return }
+    onSuccess()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={onCancel}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6" onClick={e => e.stopPropagation()}>
+        <div className="text-center mb-5">
+          <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <Lock className="w-5 h-5 text-slate-600" />
+          </div>
+          <h3 className="text-base font-bold text-slate-800">Verificación requerida</h3>
+          <p className="text-xs text-slate-400 mt-1">Ingresa tu PIN para continuar</p>
+        </div>
+        <input
+          type="password" inputMode="numeric" maxLength={4}
+          className="input text-center text-2xl font-bold tracking-[0.5em] mb-3"
+          placeholder="••••" value={pin}
+          onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setError('') }}
+          autoFocus
+        />
+        {error && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 mb-3">
+            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />{error}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button onClick={onCancel} className="flex-1 px-3 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors">
+            Cancelar
+          </button>
+          <button onClick={verify} disabled={loading || pin.length < 4}
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ══ Edit Sale Modal ══ */
+function EditSaleModal({ sale, onClose, onSaved }) {
+  const [metodo, setMetodo] = useState(sale.metodo_pago)
+  const [notas, setNotas]   = useState(sale.notas || '')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    await supabase.from('sales').update({ metodo_pago: metodo, notas: notas.trim() || null }).eq('id', sale.id)
+    setSaving(false)
+    onSaved()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <h3 className="font-bold text-slate-800 text-sm">Editar venta</h3>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+            <X className="w-4 h-4 text-slate-400" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="label">Método de pago</label>
+            <div className="grid grid-cols-3 gap-2">
+              {METODOS_PAGO.map(m => (
+                <button key={m.id} type="button" onClick={() => setMetodo(m.id)}
+                  className={cn('flex flex-col items-center gap-1.5 p-3 rounded-xl border text-xs font-semibold transition-all',
+                    metodo === m.id ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50')}>
+                  <m.icon className="w-4 h-4" />{m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="label">Notas</label>
+            <input className="input text-sm" value={notas} onChange={e => setNotas(e.target.value)} placeholder="Observaciones..." />
+          </div>
+        </div>
+        <div className="flex gap-3 px-5 py-4 border-t border-slate-100">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors">
+            Cancelar
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ══ Historial de ventas ══ */
-function SalesHistory({ doctorId, refreshKey }) {
+function SalesHistory({ doctorId, refreshKey, onEdit, onDelete }) {
   const [sales, setSales]     = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -375,12 +484,12 @@ function SalesHistory({ doctorId, refreshKey }) {
   return (
     <div className="space-y-2">
       {sales.map(sale => (
-        <div key={sale.id} className="flex items-center justify-between px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
-          <div className="flex items-center gap-3">
+        <div key={sale.id} className="flex items-center justify-between px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors group">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="w-9 h-9 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
               <ShoppingCart className="w-4 h-4 text-green-600" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-medium text-slate-800 line-clamp-1">
                 {sale.sale_items?.map(i => `${i.nombre} ×${i.cantidad}`).join(', ')}
               </p>
@@ -400,7 +509,25 @@ function SalesHistory({ doctorId, refreshKey }) {
               </div>
             </div>
           </div>
-          <span className="text-base font-bold text-green-600 flex-shrink-0 ml-2">{fmt(sale.total)}</span>
+          <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+            <span className="text-base font-bold text-green-600">{fmt(sale.total)}</span>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={() => onEdit(sale)}
+                className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                title="Editar venta"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => onDelete(sale)}
+                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                title="Eliminar venta"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
       ))}
     </div>
@@ -414,6 +541,9 @@ export default function SalesPage() {
   const [sales, setSales] = useState([])
   const [saleModal, setSaleModal]   = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  // PIN flow: { type: 'edit' | 'delete', sale }
+  const [pinAction, setPinAction]   = useState(null)
+  const [editModal, setEditModal]   = useState(null)  // sale to edit (after PIN)
 
   useEffect(() => {
     supabase.from('inventory_items')
@@ -438,6 +568,18 @@ export default function SalesPage() {
   const mesActual  = new Date().getMonth()
   const ventasMes  = sales.filter(s => new Date(s.created_at).getMonth() === mesActual)
   const totalMes   = ventasMes.reduce((s, v) => s + (v.total || 0), 0)
+
+  const handlePinSuccess = async () => {
+    if (!pinAction) return
+    if (pinAction.type === 'delete') {
+      await supabase.from('sales').delete().eq('id', pinAction.sale.id)
+      setPinAction(null)
+      setRefreshKey(k => k + 1)
+    } else if (pinAction.type === 'edit') {
+      setEditModal(pinAction.sale)
+      setPinAction(null)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -481,18 +623,45 @@ export default function SalesPage() {
             <ShoppingCart className="w-4 h-4 text-green-600" />
             <h2 className="font-semibold text-slate-700 text-sm">Historial de ventas</h2>
           </div>
-          <span className="text-xs text-slate-400">{sales.length} registros</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-400">{sales.length} registros</span>
+            <span className="flex items-center gap-1 text-xs text-slate-400">
+              <Lock className="w-3 h-3" /> PIN requerido para editar/eliminar
+            </span>
+          </div>
         </div>
         <div className="p-4">
-          <SalesHistory doctorId={doctor?.id} refreshKey={refreshKey} />
+          <SalesHistory
+            doctorId={doctor?.id}
+            refreshKey={refreshKey}
+            onEdit={sale => setPinAction({ type: 'edit', sale })}
+            onDelete={sale => setPinAction({ type: 'delete', sale })}
+          />
         </div>
       </div>
 
+      {/* Modals */}
       {saleModal && (
         <SaleModal
           items={items}
           onClose={() => setSaleModal(false)}
           onSaved={() => { setSaleModal(false); setRefreshKey(k => k + 1) }}
+        />
+      )}
+
+      {pinAction && (
+        <PinModal
+          doctorId={doctor?.id}
+          onSuccess={handlePinSuccess}
+          onCancel={() => setPinAction(null)}
+        />
+      )}
+
+      {editModal && (
+        <EditSaleModal
+          sale={editModal}
+          onClose={() => setEditModal(null)}
+          onSaved={() => { setEditModal(null); setRefreshKey(k => k + 1) }}
         />
       )}
     </div>
