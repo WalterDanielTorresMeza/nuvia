@@ -14,6 +14,7 @@ const AppointmentsPage       = lazy(() => import('./pages/AppointmentsPage'))
 const ConsultationsVideoPage = lazy(() => import('./pages/ConsultationsVideoPage'))
 const BillingPage            = lazy(() => import('./pages/BillingPage'))
 const InventoryPage          = lazy(() => import('./pages/InventoryPage'))
+const SalesPage              = lazy(() => import('./pages/SalesPage'))
 const ReportsPage            = lazy(() => import('./pages/ReportsPage'))
 const ConfigPage             = lazy(() => import('./pages/ConfigPage'))
 
@@ -51,6 +52,7 @@ export default function App() {
             <Route path="consultas"     element={<ConsultationsVideoPage />} />
             <Route path="facturacion"   element={<BillingPage />} />
             <Route path="inventario"    element={<InventoryPage />} />
+            <Route path="ventas"        element={<SalesPage />} />
             <Route path="reportes"      element={<ReportsPage />} />
             <Route path="configuracion" element={<ConfigPage />} />
           </Route>
