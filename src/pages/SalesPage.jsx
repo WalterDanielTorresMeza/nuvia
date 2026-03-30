@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useClinicStore } from '../store/clinicStore'
+import { usePatientsStore } from '../store/patientsStore'
 import {
   ShoppingCart, Search, X, Loader2, AlertTriangle,
   Trash2, Printer, CreditCard, Banknote, Smartphone, Clock, Plus,
@@ -23,6 +24,7 @@ const METODOS_PAGO = [
 function SaleModal({ items, onClose, onSaved }) {
   const { doctor }       = useAuthStore()
   const { activeClinic } = useClinicStore()
+  const { patients: allPatients } = usePatientsStore()
   const [cart, setCart]      = useState([])
   const [search, setSearch]  = useState('')
   const [descuento, setDesc] = useState('')
@@ -33,17 +35,14 @@ function SaleModal({ items, onClose, onSaved }) {
   const [done, setDone]      = useState(false)
   const [lastSale, setLastSale] = useState(null)
   const [patientSearch, setPatientSearch] = useState('')
-  const [patients, setPatients]           = useState([])
   const [selectedPatient, setSelectedPatient] = useState(null)
 
-  useEffect(() => {
-    if (patientSearch.length < 2) { setPatients([]); return }
-    supabase.from('patients')
-      .select('id, nombre, apellidos')
-      .or(`nombre.ilike.%${patientSearch}%,apellidos.ilike.%${patientSearch}%`)
-      .limit(6)
-      .then(({ data }) => setPatients(data || []))
-  }, [patientSearch])
+  const patients = patientSearch.length >= 2
+    ? allPatients.filter(p => {
+        const q = patientSearch.toLowerCase()
+        return p.nombre?.toLowerCase().includes(q) || p.apellidos?.toLowerCase().includes(q)
+      }).slice(0, 6)
+    : []
 
   const available = items.filter(i =>
     i.stock_actual > 0 &&
@@ -305,7 +304,7 @@ function SaleModal({ items, onClose, onSaved }) {
                     <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
                       {patients.map(p => (
                         <button key={p.id} type="button"
-                          onClick={() => { setSelectedPatient(p); setPatientSearch(''); setPatients([]) }}
+                          onClick={() => { setSelectedPatient(p); setPatientSearch('') }}
                           className="w-full text-left px-4 py-2.5 hover:bg-green-50 transition-colors text-sm border-b border-slate-50 last:border-0">
                           {p.nombre} {p.apellidos}
                         </button>
