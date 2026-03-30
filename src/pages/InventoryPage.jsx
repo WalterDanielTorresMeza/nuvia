@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
 import {
-  Plus, Search, X, Loader2, AlertTriangle, Package, Edit2, RefreshCw,
+  Plus, Search, X, Loader2, AlertTriangle, Package, Edit2, RefreshCw, Camera,
 } from 'lucide-react'
 import { cn } from '../utils'
 
@@ -30,11 +30,102 @@ function stockStatus(item) {
 /* ══ Item modal (crear / editar) ══ */
 const genSKU = () => 'PROD-' + Math.random().toString(36).substring(2, 8).toUpperCase()
 
+/* ══ Escáner de cámara ══ */
+function BarcodeScanner({ onDetected, onClose }) {
+  const videoRef = useRef(null)
+  const [status, setStatus] = useState('starting') // starting | scanning | error
+  const [errorMsg, setErrorMsg] = useState('')
+
+  useEffect(() => {
+    let stream = null
+    let rafId  = null
+    let detector = null
+
+    const start = async () => {
+      if (!('BarcodeDetector' in window)) {
+        setStatus('error')
+        setErrorMsg('Tu navegador no soporta el escáner de cámara. Usa Chrome en Android, o escribe/pega el código manualmente.')
+        return
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+        detector = new window.BarcodeDetector({
+          formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code'],
+        })
+        setStatus('scanning')
+        const scan = async () => {
+          if (!videoRef.current) return
+          try {
+            const codes = await detector.detect(videoRef.current)
+            if (codes.length > 0) { onDetected(codes[0].rawValue); return }
+          } catch {}
+          rafId = requestAnimationFrame(scan)
+        }
+        rafId = requestAnimationFrame(scan)
+      } catch (e) {
+        setStatus('error')
+        setErrorMsg('No se pudo acceder a la cámara. Verifica los permisos del navegador.')
+      }
+    }
+
+    start()
+    return () => {
+      if (stream) stream.getTracks().forEach(t => t.stop())
+      if (rafId)  cancelAnimationFrame(rafId)
+    }
+  }, [])
+
+  return (
+    <div className="fixed inset-0 bg-black z-[60] flex flex-col">
+      <div className="flex items-center justify-between px-4 py-3 bg-black/80">
+        <p className="text-white font-semibold text-sm">Escanear código de barras</p>
+        <button onClick={onClose} className="p-1.5 text-white hover:text-slate-300 transition-colors">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      {status === 'error' ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-4">
+          <AlertTriangle className="w-10 h-10 text-amber-400" />
+          <p className="text-white text-sm">{errorMsg}</p>
+          <button onClick={onClose}
+            className="px-4 py-2 bg-white text-slate-800 rounded-xl text-sm font-semibold">
+            Cerrar
+          </button>
+        </div>
+      ) : (
+        <div className="flex-1 relative overflow-hidden">
+          <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+          {/* Guía visual */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-72 h-28 border-2 border-green-400 rounded-xl relative">
+              <div className="absolute top-0 left-0 w-5 h-5 border-t-4 border-l-4 border-green-400 rounded-tl" />
+              <div className="absolute top-0 right-0 w-5 h-5 border-t-4 border-r-4 border-green-400 rounded-tr" />
+              <div className="absolute bottom-0 left-0 w-5 h-5 border-b-4 border-l-4 border-green-400 rounded-bl" />
+              <div className="absolute bottom-0 right-0 w-5 h-5 border-b-4 border-r-4 border-green-400 rounded-br" />
+            </div>
+          </div>
+          {status === 'starting' && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-white animate-spin" />
+            </div>
+          )}
+          <p className="absolute bottom-8 w-full text-center text-white/80 text-xs">
+            Apunta la cámara al código de barras
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ItemModal({ item, onClose, onSaved }) {
   const { doctor } = useAuthStore()
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
   const [skuTipo, setSkuTipo] = useState(item?.sku ? 'barcode' : 'auto')
+  const [showScanner, setShowScanner] = useState(false)
   const [form, setForm]     = useState({
     nombre:                 item?.nombre                 || '',
     categoria:              item?.categoria              || 'medicamento',
@@ -120,21 +211,43 @@ function ItemModal({ item, onClose, onSaved }) {
                 </button>
               ))}
             </div>
-            <div className="relative">
-              <input className={cn('input text-sm font-mono', skuTipo === 'auto' && 'bg-slate-50 text-slate-400')}
-                placeholder="Escanea o escribe el código de barras"
-                value={form.sku}
-                readOnly={skuTipo === 'auto'}
-                onChange={e => set('sku', e.target.value)} />
-              {skuTipo === 'auto' && (
-                <button type="button" onClick={() => set('sku', genSKU())}
-                  title="Regenerar"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-violet-500 transition-colors">
-                  <RefreshCw className="w-3.5 h-3.5" />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input className={cn('input text-sm font-mono w-full', skuTipo === 'auto' && 'bg-slate-50 text-slate-400')}
+                  placeholder="Escanea o escribe el código de barras"
+                  value={form.sku}
+                  readOnly={skuTipo === 'auto'}
+                  onChange={e => set('sku', e.target.value)} />
+                {skuTipo === 'auto' && (
+                  <button type="button" onClick={() => set('sku', genSKU())}
+                    title="Regenerar"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-violet-500 transition-colors">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              {skuTipo === 'barcode' && (
+                <button type="button" onClick={() => setShowScanner(true)}
+                  title="Usar cámara"
+                  className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-slate-500 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 transition-colors text-xs font-medium flex-shrink-0">
+                  <Camera className="w-4 h-4" />
+                  Cámara
                 </button>
               )}
             </div>
+            {skuTipo === 'barcode' && (
+              <p className="text-xs text-slate-400 mt-1">
+                💡 El lector USB/Bluetooth funciona automáticamente — solo enfoca el campo y escanea.
+              </p>
+            )}
           </div>
+
+          {showScanner && (
+            <BarcodeScanner
+              onDetected={(code) => { set('sku', code); setShowScanner(false) }}
+              onClose={() => setShowScanner(false)}
+            />
+          )}
 
           {/* Categoría + Unidad */}
           <div className="grid grid-cols-2 gap-4">
