@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { Eye, EyeOff, Loader2, Mail, Lock } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { Eye, EyeOff, Loader2, Mail, Lock, ArrowLeft } from 'lucide-react'
 
 /* ── ECG SVG path (heartbeat) ── */
 function EcgLine() {
@@ -31,6 +32,11 @@ export default function LoginPage() {
   const { login, error }        = useAuthStore()
   const navigate                = useNavigate()
 
+  const [forgotMode, setForgotMode]     = useState(false)
+  const [resetEmail, setResetEmail]     = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetMsg, setResetMsg]         = useState('')   // 'ok:...' | 'error:...'
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -38,6 +44,21 @@ export default function LoginPage() {
     setLoading(false)
     if (ok) navigate('/dashboard')
   }
+
+  const handleForgot = async (e) => {
+    e.preventDefault()
+    if (!resetEmail.trim()) return
+    setResetLoading(true); setResetMsg('')
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    setResetLoading(false)
+    if (error) { setResetMsg(`error:${error.message}`); return }
+    setResetMsg('ok:¡Listo! Revisa tu correo y haz clic en el enlace para restablecer tu contraseña.')
+  }
+
+  const resetIsError = resetMsg.startsWith('error:')
+  const resetText    = resetMsg.replace(/^(ok|error):/, '')
 
   return (
     <>
@@ -169,48 +190,95 @@ export default function LoginPage() {
             {/* Card */}
             <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/80 border border-slate-100 p-8">
 
-              <div className="mb-7">
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Bienvenido de vuelta</h2>
-                <p className="text-slate-400 text-sm mt-1.5">Ingresa tus credenciales para continuar</p>
-              </div>
-
-              {error && (
-                <div className="mb-5 flex items-center gap-3 px-4 py-3.5 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">
-                  <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 font-bold text-xs">!</div>
-                  {error === 'Invalid login credentials' ? 'Correo o contraseña incorrectos' : error}
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="label">Correo electrónico</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                      className="input pl-10" placeholder="doctor@clinica.com" required />
+              {!forgotMode ? (
+                <>
+                  <div className="mb-7">
+                    <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Bienvenido de vuelta</h2>
+                    <p className="text-slate-400 text-sm mt-1.5">Ingresa tus credenciales para continuar</p>
                   </div>
-                </div>
 
-                <div>
-                  <label className="label">Contraseña</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <input type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
-                      className="input pl-10 pr-11" placeholder="••••••••" required />
-                    <button type="button" onClick={() => setShowPass(!showPass)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
-                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {error && (
+                    <div className="mb-5 flex items-center gap-3 px-4 py-3.5 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">
+                      <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 font-bold text-xs">!</div>
+                      {error === 'Invalid login credentials' ? 'Correo o contraseña incorrectos' : error}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <label className="label">Correo electrónico</label>
+                      <div className="relative">
+                        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                          className="input pl-10" placeholder="doctor@clinica.com" required />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="label mb-0">Contraseña</label>
+                        <button type="button" onClick={() => { setForgotMode(true); setResetMsg('') }}
+                          className="text-xs text-primary-600 hover:text-primary-700 font-medium transition-colors">
+                          ¿Olvidaste tu contraseña?
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        <input type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                          className="input pl-10 pr-11" placeholder="••••••••" required />
+                        <button type="button" onClick={() => setShowPass(!showPass)}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                          {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <button type="submit" disabled={loading}
+                      className="w-full flex items-center justify-center gap-2 py-3.5 mt-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 active:scale-[0.99] text-white font-semibold text-sm rounded-2xl transition-all"
+                      style={{ boxShadow: '0 4px 16px rgba(2,132,199,0.3)' }}>
+                      {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {loading ? 'Iniciando sesión...' : 'Iniciar sesión →'}
                     </button>
-                  </div>
-                </div>
+                  </form>
+                </>
+              ) : (
+                <>
+                  <button type="button" onClick={() => { setForgotMode(false); setResetMsg('') }}
+                    className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors mb-6">
+                    <ArrowLeft className="w-3.5 h-3.5" /> Volver al inicio de sesión
+                  </button>
 
-                <button type="submit" disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 mt-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 active:scale-[0.99] text-white font-semibold text-sm rounded-2xl transition-all"
-                  style={{ boxShadow: '0 4px 16px rgba(2,132,199,0.3)' }}>
-                  {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {loading ? 'Iniciando sesión...' : 'Iniciar sesión →'}
-                </button>
-              </form>
+                  <div className="mb-6">
+                    <h2 className="text-xl font-bold text-slate-900 tracking-tight">Restablecer contraseña</h2>
+                    <p className="text-slate-400 text-sm mt-1.5">Te enviaremos un enlace a tu correo para crear una nueva contraseña.</p>
+                  </div>
+
+                  {resetMsg && (
+                    <div className={`mb-5 px-4 py-3.5 rounded-2xl text-sm border ${resetIsError ? 'bg-red-50 border-red-200 text-red-700' : 'bg-green-50 border-green-200 text-green-700'}`}>
+                      {resetText}
+                    </div>
+                  )}
+
+                  {!resetMsg.startsWith('ok:') && (
+                    <form onSubmit={handleForgot} className="space-y-4">
+                      <div>
+                        <label className="label">Correo electrónico</label>
+                        <div className="relative">
+                          <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                          <input type="email" value={resetEmail} onChange={e => setResetEmail(e.target.value)}
+                            className="input pl-10" placeholder="doctor@clinica.com" required autoFocus />
+                        </div>
+                      </div>
+                      <button type="submit" disabled={resetLoading || !resetEmail.trim()}
+                        className="w-full flex items-center justify-center gap-2 py-3.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white font-semibold text-sm rounded-2xl transition-all"
+                        style={{ boxShadow: '0 4px 16px rgba(2,132,199,0.3)' }}>
+                        {resetLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                        {resetLoading ? 'Enviando...' : 'Enviar enlace de restablecimiento'}
+                      </button>
+                    </form>
+                  )}
+                </>
+              )}
 
               <div className="mt-7 pt-6 border-t border-slate-100 flex items-center gap-3">
                 <div className="flex-1 h-px bg-slate-100" />

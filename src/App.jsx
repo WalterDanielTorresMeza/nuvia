@@ -3,7 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import { Loader2 } from 'lucide-react'
 
-import LoginPage      from './pages/LoginPage'
+import LoginPage           from './pages/LoginPage'
+import ResetPasswordPage  from './pages/ResetPasswordPage'
 import MainLayout     from './components/layout/MainLayout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
@@ -35,7 +36,8 @@ export default function App() {
     <BrowserRouter>
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login"          element={<LoginPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
             path="/"
             element={
