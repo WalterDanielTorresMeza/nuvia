@@ -215,12 +215,8 @@ export default function LoginPage() {
                     </div>
 
                     <div>
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="mb-1">
                         <label className="label mb-0">Contraseña</label>
-                        <button type="button" onClick={() => { setForgotMode(true); setResetMsg('') }}
-                          className="text-xs text-primary-600 hover:text-primary-700 font-medium transition-colors">
-                          ¿Olvidaste tu contraseña?
-                        </button>
                       </div>
                       <div className="relative">
                         <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />

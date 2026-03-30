@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import {
   Stethoscope, Users, Calendar, Video, FileText,
-  BarChart3, Settings, LogOut, Menu, X, Receipt, Package, ShoppingCart,
+  BarChart3, Settings, LogOut, Menu, X, Package, ShoppingCart,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '../../utils'
@@ -12,7 +12,6 @@ const navItems = [
   { to: '/pacientes',     icon: Users,      label: 'Pacientes' },
   { to: '/agenda',        icon: Calendar,   label: 'Agenda' },
   { to: '/consultas',     icon: Video,      label: 'Videoconsultas' },
-  { to: '/facturacion',   icon: Receipt,    label: 'Facturación' },
   { to: '/inventario',    icon: Package,       label: 'Inventario' },
   { to: '/ventas',        icon: ShoppingCart, label: 'Punto de Venta' },
   { to: '/reportes',      icon: FileText,     label: 'Reportes' },
