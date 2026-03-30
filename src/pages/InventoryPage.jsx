@@ -231,19 +231,20 @@ function ItemModal({ item, onClose, onSaved }) {
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />{error}
             </div>
           )}
-
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose}
-              className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors">
-              Cancelar
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
-              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-              {saving ? 'Guardando...' : item ? 'Guardar cambios' : 'Agregar producto'}
-            </button>
-          </div>
         </form>
+
+        {/* Footer fijo */}
+        <div className="flex gap-3 px-6 py-4 border-t border-slate-100 flex-shrink-0">
+          <button type="button" onClick={onClose}
+            className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors">
+            Cancelar
+          </button>
+          <button onClick={handleSubmit} disabled={saving}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+            {saving ? 'Guardando...' : item ? 'Guardar cambios' : 'Agregar producto'}
+          </button>
+        </div>
       </div>
     </div>
   )
