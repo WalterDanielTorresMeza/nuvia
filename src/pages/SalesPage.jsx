@@ -32,6 +32,18 @@ function SaleModal({ items, onClose, onSaved }) {
   const [error, setError]    = useState('')
   const [done, setDone]      = useState(false)
   const [lastSale, setLastSale] = useState(null)
+  const [patientSearch, setPatientSearch] = useState('')
+  const [patients, setPatients]           = useState([])
+  const [selectedPatient, setSelectedPatient] = useState(null)
+
+  useEffect(() => {
+    if (patientSearch.length < 2) { setPatients([]); return }
+    supabase.from('patients')
+      .select('id, nombre, apellidos')
+      .or(`nombre.ilike.%${patientSearch}%,apellidos.ilike.%${patientSearch}%`)
+      .limit(6)
+      .then(({ data }) => setPatients(data || []))
+  }, [patientSearch])
 
   const available = items.filter(i =>
     i.stock_actual > 0 &&
@@ -69,6 +81,7 @@ function SaleModal({ items, onClose, onSaved }) {
     const { data: sale, error: e1 } = await supabase.from('sales').insert([{
       doctor_id:   did,
       clinic_id:   activeClinic?.id || null,
+      patient_id:  selectedPatient?.id || null,
       total,
       descuento:   desc,
       metodo_pago: metodo,
@@ -93,7 +106,7 @@ function SaleModal({ items, onClose, onSaved }) {
         .eq('id', r.item.id)
     ))
 
-    setLastSale({ ...sale, items: saleItems })
+    setLastSale({ ...sale, items: saleItems, patientName: selectedPatient ? `${selectedPatient.nombre} ${selectedPatient.apellidos}` : null })
     setDone(true)
     setSaving(false)
     onSaved()
@@ -126,6 +139,7 @@ function SaleModal({ items, onClose, onSaved }) {
                 <span>Total</span><span>{fmt(lastSale.total)}</span>
               </div>
               <p className="text-xs text-slate-400 pt-1">Pago: {METODOS_PAGO.find(m => m.id === lastSale.metodo_pago)?.label}</p>
+              {lastSale.patientName && <p className="text-xs text-slate-400">Paciente: {lastSale.patientName}</p>}
             </div>
             <div className="flex gap-2">
               <button onClick={() => window.print()} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors">
@@ -269,14 +283,45 @@ function SaleModal({ items, onClose, onSaved }) {
               </div>
             )}
 
+            {/* Paciente */}
+            <div>
+              <label className="label">Paciente <span className="text-slate-400 font-normal">(opcional)</span></label>
+              {selectedPatient ? (
+                <div className="flex items-center justify-between px-3 py-2.5 bg-green-50 border border-green-200 rounded-xl">
+                  <span className="text-sm font-medium text-green-800">
+                    {selectedPatient.nombre} {selectedPatient.apellidos}
+                  </span>
+                  <button type="button" onClick={() => { setSelectedPatient(null); setPatientSearch('') }}
+                    className="text-green-500 hover:text-green-700 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input className="input pl-9 text-sm" placeholder="Buscar paciente por nombre..."
+                    value={patientSearch} onChange={e => setPatientSearch(e.target.value)} />
+                  {patients.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                      {patients.map(p => (
+                        <button key={p.id} type="button"
+                          onClick={() => { setSelectedPatient(p); setPatientSearch(''); setPatients([]) }}
+                          className="w-full text-left px-4 py-2.5 hover:bg-green-50 transition-colors text-sm border-b border-slate-50 last:border-0">
+                          {p.nombre} {p.apellidos}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Notas */}
-            {cart.length > 0 && (
-              <div>
-                <label className="label">Notas (opcional)</label>
-                <input className="input text-sm" placeholder="Paciente, motivo de compra..."
-                  value={notas} onChange={e => setNotas(e.target.value)} />
-              </div>
-            )}
+            <div>
+              <label className="label">Notas <span className="text-slate-400 font-normal">(opcional)</span></label>
+              <input className="input text-sm" placeholder="Motivo de compra, observaciones..."
+                value={notas} onChange={e => setNotas(e.target.value)} />
+            </div>
 
             {error && (
               <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
