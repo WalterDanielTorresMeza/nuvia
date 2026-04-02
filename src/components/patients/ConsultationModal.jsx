@@ -177,7 +177,7 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
   useEffect(() => {
     if (!doctor?.id) return
     supabase.from('doctors')
-      .select('nombre, apellidos, especialidad, cedula_profesional, cedula_especialidad, telefono')
+      .select('nombre, apellidos, especialidad, cedulas, cedula_profesional, telefono')
       .eq('id', doctor.id).single()
       .then(({ data }) => { if (data) setDocFull(data) })
   }, [doctor?.id])
@@ -213,7 +213,12 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
             <div>
               <h1 className="text-xl font-bold text-slate-800">Dr. {doc?.nombre} {doc?.apellidos}</h1>
               {doc?.especialidad    && <p className="text-sm text-slate-500">{doc.especialidad}</p>}
-              {doc?.cedula_profesional && <p className="text-sm text-slate-500">Cédula Prof.: {doc.cedula_profesional}{doc.cedula_especialidad ? ` · Esp.: ${doc.cedula_especialidad}` : ''}</p>}
+              {(Array.isArray(doc?.cedulas) && doc.cedulas.length > 0
+                ? doc.cedulas
+                : doc?.cedula_profesional ? [{ descripcion: 'Cédula Prof.', numero: doc.cedula_profesional }] : []
+              ).map((c, i) => (
+                <p key={i} className="text-sm text-slate-500">{c.descripcion}: {c.numero}</p>
+              ))}
               {doc?.telefono        && <p className="text-sm text-slate-500">Tel.: {doc.telefono}</p>}
             </div>
             <div className="text-right">
@@ -292,8 +297,12 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
             <div className="text-center min-w-[180px]">
               <div className="border-t border-slate-800 pt-2">
                 <p className="text-sm font-medium text-slate-700">Dr. {doc?.nombre} {doc?.apellidos}</p>
-                {doc?.cedula_profesional && <p className="text-xs text-slate-400">Céd. {doc.cedula_profesional}</p>}
-                {doc?.cedula_especialidad && <p className="text-xs text-slate-400">Esp. {doc.cedula_especialidad}</p>}
+                {(Array.isArray(doc?.cedulas) && doc.cedulas.length > 0
+                  ? doc.cedulas
+                  : doc?.cedula_profesional ? [{ descripcion: 'Céd.', numero: doc.cedula_profesional }] : []
+                ).map((c, i) => (
+                  <p key={i} className="text-xs text-slate-400">{c.descripcion} {c.numero}</p>
+                ))}
                 <p className="text-xs text-slate-400">Firma y sello</p>
               </div>
             </div>
@@ -314,7 +323,7 @@ function PrintReceta({ form, patient, doctor, onClose }) {
   useEffect(() => {
     if (!doctor?.id) return
     supabase.from('doctors')
-      .select('nombre, apellidos, especialidad, cedula_profesional, cedula_especialidad, telefono')
+      .select('nombre, apellidos, especialidad, cedulas, cedula_profesional, telefono')
       .eq('id', doctor.id).single()
       .then(({ data }) => { if (data) setDocFull(data) })
   }, [doctor?.id])
@@ -349,7 +358,12 @@ function PrintReceta({ form, patient, doctor, onClose }) {
             <div>
               <h1 className="text-xl font-bold text-slate-800">Dr. {doc?.nombre} {doc?.apellidos}</h1>
               {doc?.especialidad && <p className="text-sm text-slate-500">{doc.especialidad}</p>}
-              {doc?.cedula_profesional && <p className="text-sm text-slate-500">Cédula Prof.: {doc.cedula_profesional}{doc.cedula_especialidad ? ` · Esp.: ${doc.cedula_especialidad}` : ''}</p>}
+              {(Array.isArray(doc?.cedulas) && doc.cedulas.length > 0
+                ? doc.cedulas
+                : doc?.cedula_profesional ? [{ descripcion: 'Cédula Prof.', numero: doc.cedula_profesional }] : []
+              ).map((c, i) => (
+                <p key={i} className="text-sm text-slate-500">{c.descripcion}: {c.numero}</p>
+              ))}
               {doc?.telefono && <p className="text-sm text-slate-500">Tel.: {doc.telefono}</p>}
             </div>
             <div className="text-right">
@@ -439,8 +453,12 @@ function PrintReceta({ form, patient, doctor, onClose }) {
             <div className="text-center min-w-[180px]">
               <div className="border-t border-slate-800 pt-2">
                 <p className="text-sm font-medium text-slate-700">Dr. {doc?.nombre} {doc?.apellidos}</p>
-                {doc?.cedula_profesional && <p className="text-xs text-slate-400">Céd. {doc.cedula_profesional}</p>}
-                {doc?.cedula_especialidad && <p className="text-xs text-slate-400">Esp. {doc.cedula_especialidad}</p>}
+                {(Array.isArray(doc?.cedulas) && doc.cedulas.length > 0
+                  ? doc.cedulas
+                  : doc?.cedula_profesional ? [{ descripcion: 'Céd.', numero: doc.cedula_profesional }] : []
+                ).map((c, i) => (
+                  <p key={i} className="text-xs text-slate-400">{c.descripcion} {c.numero}</p>
+                ))}
                 <p className="text-xs text-slate-400">Firma y sello</p>
               </div>
             </div>
@@ -461,7 +479,7 @@ function PrintDescanso({ form, patient, doctor, onClose }) {
   useEffect(() => {
     if (!doctor?.id) return
     supabase.from('doctors')
-      .select('nombre, apellidos, especialidad, cedula_profesional, cedula_especialidad, telefono')
+      .select('nombre, apellidos, especialidad, cedulas, cedula_profesional, telefono')
       .eq('id', doctor.id).single()
       .then(({ data }) => { if (data) setDocFull(data) })
   }, [doctor?.id])
@@ -505,7 +523,12 @@ function PrintDescanso({ form, patient, doctor, onClose }) {
             <div>
               <h1 className="text-xl font-bold text-slate-800">Dr. {doc?.nombre} {doc?.apellidos}</h1>
               {doc?.especialidad       && <p className="text-sm text-slate-500">{doc.especialidad}</p>}
-              {doc?.cedula_profesional && <p className="text-sm text-slate-500">Cédula Prof.: {doc.cedula_profesional}{doc.cedula_especialidad ? ` · Esp.: ${doc.cedula_especialidad}` : ''}</p>}
+              {(Array.isArray(doc?.cedulas) && doc.cedulas.length > 0
+                ? doc.cedulas
+                : doc?.cedula_profesional ? [{ descripcion: 'Cédula Prof.', numero: doc.cedula_profesional }] : []
+              ).map((c, i) => (
+                <p key={i} className="text-sm text-slate-500">{c.descripcion}: {c.numero}</p>
+              ))}
               {doc?.telefono          && <p className="text-sm text-slate-500">Tel.: {doc.telefono}</p>}
             </div>
             <div className="text-right">
@@ -561,8 +584,12 @@ function PrintDescanso({ form, patient, doctor, onClose }) {
             <div className="text-center min-w-[180px]">
               <div className="border-t border-slate-800 pt-2">
                 <p className="text-sm font-medium text-slate-700">Dr. {doc?.nombre} {doc?.apellidos}</p>
-                {doc?.cedula_profesional && <p className="text-xs text-slate-400">Céd. {doc.cedula_profesional}</p>}
-                {doc?.cedula_especialidad && <p className="text-xs text-slate-400">Esp. {doc.cedula_especialidad}</p>}
+                {(Array.isArray(doc?.cedulas) && doc.cedulas.length > 0
+                  ? doc.cedulas
+                  : doc?.cedula_profesional ? [{ descripcion: 'Céd.', numero: doc.cedula_profesional }] : []
+                ).map((c, i) => (
+                  <p key={i} className="text-xs text-slate-400">{c.descripcion} {c.numero}</p>
+                ))}
                 <p className="text-xs text-slate-400">Firma y sello</p>
               </div>
             </div>

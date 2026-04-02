@@ -701,7 +701,8 @@ function IntegracionesSection({ doctorId }) {
 /* ══════════════════════════════════════════ */
 export default function ConfigPage() {
   const { doctor, fetchDoctor } = useAuthStore()
-  const [form, setForm]     = useState({ nombre: '', apellidos: '', especialidad: '', cedula_profesional: '', cedula_especialidad: '', telefono: '', email: '' })
+  const [form, setForm]     = useState({ nombre: '', apellidos: '', especialidad: '', telefono: '', email: '' })
+  const [cedulas, setCedulas] = useState([])   // [{ descripcion, numero }]
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [error, setError]   = useState('')
@@ -713,14 +714,23 @@ export default function ConfigPage() {
   useEffect(() => {
     if (doctor) {
       setForm({
-        nombre:              doctor.nombre              || '',
-        apellidos:           doctor.apellidos           || '',
-        especialidad:        doctor.especialidad        || '',
-        cedula_profesional:  doctor.cedula_profesional  || doctor.cedula || '',
-        cedula_especialidad: doctor.cedula_especialidad || '',
-        telefono:            doctor.telefono            || '',
-        email:               doctor.email               || '',
+        nombre:       doctor.nombre       || '',
+        apellidos:    doctor.apellidos    || '',
+        especialidad: doctor.especialidad || '',
+        telefono:     doctor.telefono     || '',
+        email:        doctor.email        || '',
       })
+      // Cargar cédulas: array nuevo, o migrar desde columnas viejas
+      if (Array.isArray(doctor.cedulas) && doctor.cedulas.length > 0) {
+        setCedulas(doctor.cedulas)
+      } else {
+        const legacy = []
+        if (doctor.cedula_profesional || doctor.cedula)
+          legacy.push({ descripcion: 'Medicina General', numero: doctor.cedula_profesional || doctor.cedula })
+        if (doctor.cedula_especialidad)
+          legacy.push({ descripcion: 'Especialidad', numero: doctor.cedula_especialidad })
+        setCedulas(legacy)
+      }
     }
   }, [doctor])
 
@@ -730,16 +740,20 @@ export default function ConfigPage() {
     e.preventDefault()
     if (!form.nombre.trim() || !form.apellidos.trim()) { setError('Nombre y apellidos son requeridos.'); return }
     setSaving(true); setError('')
+    // Normalizar cédulas: quitar filas vacías
+    const cedulasLimpias = cedulas.filter(c => c.numero.trim())
     const { error: dbErr } = await supabase
       .from('doctors')
       .update({
-        nombre:              form.nombre.trim(),
-        apellidos:           form.apellidos.trim(),
-        especialidad:        form.especialidad.trim()        || null,
-        cedula:              form.cedula_profesional.trim()  || null,
-        cedula_profesional:  form.cedula_profesional.trim()  || null,
-        cedula_especialidad: form.cedula_especialidad.trim() || null,
-        telefono:            form.telefono.trim()            || null,
+        nombre:       form.nombre.trim(),
+        apellidos:    form.apellidos.trim(),
+        especialidad: form.especialidad.trim() || null,
+        telefono:     form.telefono.trim()     || null,
+        cedulas:      cedulasLimpias,
+        // mantener columnas legacy sincronizadas para compatibilidad
+        cedula:              cedulasLimpias[0]?.numero || null,
+        cedula_profesional:  cedulasLimpias[0]?.numero || null,
+        cedula_especialidad: cedulasLimpias[1]?.numero || null,
       })
       .eq('id', doctor.id)
     setSaving(false)
@@ -800,24 +814,47 @@ export default function ConfigPage() {
             <Field label="Correo"        icon={Mail}         value={form.email}        disabled placeholder={form.email} />
           </div>
 
-          {/* Cédulas profesionales */}
+          {/* Cédulas profesionales — lista dinámica */}
           <div className="border-t border-slate-100 pt-4">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-              <Hash className="w-3.5 h-3.5" /> Cédulas profesionales
-            </p>
-            <p className="text-xs text-slate-400 mb-3">Aparecen en recetas, constancias y solicitudes de estudios al imprimir.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Cédula de médico general / titular"
-                icon={Hash}
-                value={form.cedula_profesional}
-                onChange={e => set('cedula_profesional', e.target.value)}
-                placeholder="12345678" />
-              <Field label="Cédula de especialidad (opcional)"
-                icon={Hash}
-                value={form.cedula_especialidad}
-                onChange={e => set('cedula_especialidad', e.target.value)}
-                placeholder="87654321" />
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+                <Hash className="w-3.5 h-3.5" /> Cédulas profesionales
+              </p>
+              <button type="button"
+                onClick={() => setCedulas(c => [...c, { descripcion: '', numero: '' }])}
+                className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-semibold transition-colors">
+                <Plus className="w-3.5 h-3.5" /> Agregar cédula
+              </button>
             </div>
+            <p className="text-xs text-slate-400 mb-3">Aparecen en recetas, constancias y solicitudes de estudios al imprimir.</p>
+
+            {cedulas.length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-2">Sin cédulas registradas. Agrega una con el botón de arriba.</p>
+            ) : (
+              <div className="space-y-2">
+                {cedulas.map((ced, i) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <input
+                      className="input text-sm flex-1"
+                      placeholder="Descripción (ej. Medicina General, Cardiología…)"
+                      value={ced.descripcion}
+                      onChange={e => setCedulas(c => c.map((x, idx) => idx === i ? { ...x, descripcion: e.target.value } : x))}
+                    />
+                    <input
+                      className="input text-sm w-36 font-mono"
+                      placeholder="Número"
+                      value={ced.numero}
+                      onChange={e => setCedulas(c => c.map((x, idx) => idx === i ? { ...x, numero: e.target.value } : x))}
+                    />
+                    <button type="button"
+                      onClick={() => setCedulas(c => c.filter((_, idx) => idx !== i))}
+                      className="p-2 text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</p>}
