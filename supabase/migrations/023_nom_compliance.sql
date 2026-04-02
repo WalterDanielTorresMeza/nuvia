@@ -30,14 +30,22 @@ CREATE TABLE IF NOT EXISTS audit_log (
 -- RLS: cada médico solo ve sus propios registros de auditoría
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "audit_log_doctor_own"
-  ON audit_log
-  FOR ALL
-  USING (
-    doctor_id = (
-      SELECT id FROM doctors WHERE user_id = auth.uid() LIMIT 1
-    )
-  );
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'audit_log' AND policyname = 'audit_log_doctor_own'
+  ) THEN
+    CREATE POLICY "audit_log_doctor_own"
+      ON audit_log
+      FOR ALL
+      USING (
+        doctor_id = (
+          SELECT id FROM doctors WHERE user_id = auth.uid() LIMIT 1
+        )
+      );
+  END IF;
+END $$;
 
 -- Índices para consultas rápidas de auditoría
 CREATE INDEX IF NOT EXISTS audit_log_doctor_idx   ON audit_log (doctor_id, created_at DESC);
