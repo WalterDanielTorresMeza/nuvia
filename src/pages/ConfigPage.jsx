@@ -5,7 +5,7 @@ import {
   Loader2, Save, Check, User, Stethoscope, Phone, Mail,
   Hash, Shield, MapPin, Building2, Plus, Pencil, Trash2,
   Star, X, FileText, Lock, Zap, MessageCircle, CreditCard,
-  Calendar, ChevronDown, ChevronRight, Eye, EyeOff,
+  Calendar, ChevronDown, ChevronRight, Eye, EyeOff, Database,
 } from 'lucide-react'
 
 /* ── Preset colors for clinics ── */
@@ -635,6 +635,28 @@ function IntegracionesSection({ doctorId }) {
           </div>
           <p className="text-xs text-slate-400">
             Habilita el cobro con tarjeta directamente desde el Punto de Venta. Las llaves de prueba no generan cobros reales.
+          </p>
+        </IntegSubsection>
+
+        {/* ── Supabase ── */}
+        <IntegSubsection title="Supabase (base de datos del proyecto)" icon={Database} color="#3ecf8e">
+          <div className="px-3 py-2.5 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-700 leading-relaxed">
+            Estas credenciales ya están configuradas en el código fuente (<span className="font-mono">.env</span>).
+            Solo cámbialas aquí si migraste el proyecto a otro proyecto de Supabase.
+          </div>
+          <div>
+            <label className="label">Project URL</label>
+            <input className="input font-mono text-sm" placeholder="https://xxxx.supabase.co"
+              value={get('supabase.url')} onChange={e => set('supabase.url', e.target.value)} />
+          </div>
+          <SecretField label="Anon / Public Key"
+            value={get('supabase.anon_key')} onChange={e => set('supabase.anon_key', e.target.value)}
+            placeholder="eyJhbGciOiJIUzI1NiIsInR5c..." />
+          <SecretField label="Service Role Key (solo para funciones del servidor)"
+            value={get('supabase.service_role_key')} onChange={e => set('supabase.service_role_key', e.target.value)}
+            placeholder="eyJhbGciOiJIUzI1NiIsInR5c..." />
+          <p className="text-xs text-slate-400">
+            Estas credenciales se guardan encriptadas en tu fila de la base de datos y solo son accesibles con tu sesión autenticada.
           </p>
         </IntegSubsection>
 

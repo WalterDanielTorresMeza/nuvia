@@ -588,9 +588,6 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
   const [showUltra,   setShowUltra]   = useState(false)
   const [showDescanso, setShowDescanso] = useState(false)
 
-  const imc = (form.peso && form.talla) ? calcIMC(parseFloat(form.peso), parseFloat(form.talla)) : null
-  const imcInfo = imc ? clasificarIMC(imc) : null
-
   const [form, setForm] = useState({
     motivo:                  consultation?.motivo || '',
     notas_padecimiento:      consultation?.notas_padecimiento || '',
@@ -632,6 +629,9 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
   }, [activeClinic?.id])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const imc = (form.peso && form.talla) ? calcIMC(parseFloat(form.peso), parseFloat(form.talla)) : null
+  const imcInfo = imc ? clasificarIMC(imc) : null
 
   const makeEditor = (field, placeholder, minH = '120px') => useEditor({
     extensions: [StarterKit, Placeholder.configure({ placeholder })],
