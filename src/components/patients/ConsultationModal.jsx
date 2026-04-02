@@ -68,17 +68,29 @@ function Section({ icon: Icon, title, color = 'text-slate-600', children, collap
   )
 }
 
+const VIAS = ['Oral','Sublingual','Intravenosa (IV)','Intramuscular (IM)',
+  'Subcutánea (SC)','Tópica','Inhalatoria','Rectal','Oftálmica','Ótica','Intranasal','Otro']
+
 /* ── Medication row ── */
 function MedRow({ med, onChange, onDelete }) {
   return (
-    <div className="grid grid-cols-12 gap-2 items-center">
-      <input className="col-span-4 input text-sm py-2" placeholder="Medicamento" value={med.nombre} onChange={e => onChange({ ...med, nombre: e.target.value })} />
-      <input className="col-span-2 input text-sm py-2" placeholder="Dosis" value={med.dosis} onChange={e => onChange({ ...med, dosis: e.target.value })} />
-      <input className="col-span-3 input text-sm py-2" placeholder="Frecuencia" value={med.frecuencia} onChange={e => onChange({ ...med, frecuencia: e.target.value })} />
-      <input className="col-span-2 input text-sm py-2 text-center" placeholder="Días" value={med.duracion} onChange={e => onChange({ ...med, duracion: e.target.value })} />
-      <button onClick={onDelete} className="col-span-1 flex justify-center text-slate-300 hover:text-red-400 transition-colors">
-        <Trash2 className="w-4 h-4" />
-      </button>
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-12 gap-2 items-center">
+        <input className="col-span-5 input text-sm py-2" placeholder="Medicamento / concentración" value={med.nombre} onChange={e => onChange({ ...med, nombre: e.target.value })} />
+        <input className="col-span-2 input text-sm py-2" placeholder="Dosis" value={med.dosis} onChange={e => onChange({ ...med, dosis: e.target.value })} />
+        <input className="col-span-2 input text-sm py-2" placeholder="Frecuencia" value={med.frecuencia} onChange={e => onChange({ ...med, frecuencia: e.target.value })} />
+        <input className="col-span-2 input text-sm py-2 text-center" placeholder="Días" value={med.duracion} onChange={e => onChange({ ...med, duracion: e.target.value })} />
+        <button onClick={onDelete} className="col-span-1 flex justify-center text-slate-300 hover:text-red-400 transition-colors">
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="pl-0">
+        <select className="input text-xs py-1.5 w-48 text-slate-600"
+          value={med.via || ''} onChange={e => onChange({ ...med, via: e.target.value })}>
+          <option value="">Vía de administración…</option>
+          {VIAS.map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
+      </div>
     </div>
   )
 }
@@ -155,6 +167,46 @@ function CIE10Input({ value, onChange }) {
   )
 }
 
+/* ── Bloque de encabezado compartido para documentos NOM-004 ── */
+function PrintDocHeader({ doc, clinic, titulo }) {
+  const ciudad = clinic?.ciudad || ''
+  const fecha  = `${ciudad ? ciudad + ', ' : ''}${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}`
+  return (
+    <div className="flex items-start justify-between">
+      <div>
+        <h1 className="text-xl font-bold text-slate-800">Dr. {doc?.nombre} {doc?.apellidos}</h1>
+        {doc?.especialidad && <p className="text-sm text-slate-500">{doc.especialidad}</p>}
+        {(Array.isArray(doc?.cedulas) && doc.cedulas.length > 0
+          ? doc.cedulas
+          : doc?.cedula_profesional ? [{ descripcion: 'Cédula Prof.', numero: doc.cedula_profesional }] : []
+        ).map((c, i) => (
+          <p key={i} className="text-sm text-slate-500">{c.descripcion}: {c.numero}</p>
+        ))}
+        {doc?.telefono && <p className="text-sm text-slate-500">Tel.: {doc.telefono}</p>}
+        {clinic && (
+          <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+            <p className="text-sm font-medium text-slate-600">{clinic.nombre}</p>
+            {clinic.direccion && <p className="text-xs text-slate-400">{clinic.direccion}{clinic.ciudad ? `, ${clinic.ciudad}` : ''}</p>}
+            {clinic.telefono  && <p className="text-xs text-slate-400">Tel. consultorio: {clinic.telefono}</p>}
+          </div>
+        )}
+      </div>
+      <div className="text-right">
+        <p className="text-sm font-bold text-slate-600 uppercase tracking-wider">{titulo}</p>
+        <p className="text-sm text-slate-500 mt-1">{fecha}</p>
+      </div>
+    </div>
+  )
+}
+
+function PrintNomFooter() {
+  return (
+    <p className="text-[10px] text-center text-slate-300 border-t border-slate-100 pt-3 leading-relaxed">
+      Generado por Nuvia · Sistema de Gestión Médica · NOM-004-SSA3-2012 Expediente Clínico · NOM-024-SSA3-2010 Sistemas de Información en Salud
+    </p>
+  )
+}
+
 /* ── Lista de estudios (compartida) ── */
 const ESTUDIOS_IMAGEN = [
   'Ultrasonido abdominal completo', 'Ultrasonido pélvico / ginecológico',
@@ -172,7 +224,7 @@ const ESTUDIOS_IMAGEN = [
 ]
 
 /* ── Solicitud de estudios de imagen imprimible ── */
-function PrintUltraSound({ form, patient, doctor, onClose }) {
+function PrintUltraSound({ form, patient, doctor, clinic, onClose }) {
   const [docFull, setDocFull] = useState(null)
   useEffect(() => {
     if (!doctor?.id) return
@@ -184,7 +236,6 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
   const doc      = docFull || doctor
   const selected = form.estudios_imagen || []
   const otro     = form.estudios_otro || ''
-  const fecha    = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
   const edad     = patient.fecha_nacimiento
     ? `${new Date().getFullYear() - new Date(patient.fecha_nacimiento).getFullYear()} años` : ''
 
@@ -208,24 +259,7 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
 
         {/* Printable content */}
         <div className="print-area p-8 space-y-5 print:p-4">
-          {/* Header */}
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-slate-800">Dr. {doc?.nombre} {doc?.apellidos}</h1>
-              {doc?.especialidad    && <p className="text-sm text-slate-500">{doc.especialidad}</p>}
-              {(Array.isArray(doc?.cedulas) && doc.cedulas.length > 0
-                ? doc.cedulas
-                : doc?.cedula_profesional ? [{ descripcion: 'Cédula Prof.', numero: doc.cedula_profesional }] : []
-              ).map((c, i) => (
-                <p key={i} className="text-sm text-slate-500">{c.descripcion}: {c.numero}</p>
-              ))}
-              {doc?.telefono        && <p className="text-sm text-slate-500">Tel.: {doc.telefono}</p>}
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-bold text-slate-600 uppercase tracking-wider">Solicitud de Estudios de Imagen</p>
-              <p className="text-sm text-slate-500 mt-1">{fecha}</p>
-            </div>
-          </div>
+          <PrintDocHeader doc={doc} clinic={clinic} titulo="Solicitud de Estudios de Imagen" />
 
           <div className="h-px bg-slate-200" />
 
@@ -236,6 +270,7 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
             <div className="flex gap-4 mt-1 flex-wrap">
               {edad         && <p className="text-sm text-slate-500">Edad: {edad}</p>}
               {patient.sexo && <p className="text-sm text-slate-500">Sexo: {patient.sexo === 'M' ? 'Masculino' : patient.sexo === 'F' ? 'Femenino' : patient.sexo}</p>}
+              {patient.curp && <p className="text-xs text-slate-400 font-mono">CURP: {patient.curp}</p>}
             </div>
           </div>
 
@@ -308,9 +343,7 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
             </div>
           </div>
 
-          <p className="text-xs text-center text-slate-300 border-t border-slate-100 pt-3">
-            Generado por Nuvia · Sistema de Gestión Médica
-          </p>
+          <PrintNomFooter />
         </div>
       </div>
     </div>
@@ -318,7 +351,7 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
 }
 
 /* ── Receta imprimible ── */
-function PrintReceta({ form, patient, doctor, onClose }) {
+function PrintReceta({ form, patient, doctor, clinic, onClose }) {
   const [docFull, setDocFull] = useState(null)
   useEffect(() => {
     if (!doctor?.id) return
@@ -353,24 +386,7 @@ function PrintReceta({ form, patient, doctor, onClose }) {
 
         {/* Printable content */}
         <div className="print-area p-8 space-y-5 print:p-4">
-          {/* Doctor */}
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-slate-800">Dr. {doc?.nombre} {doc?.apellidos}</h1>
-              {doc?.especialidad && <p className="text-sm text-slate-500">{doc.especialidad}</p>}
-              {(Array.isArray(doc?.cedulas) && doc.cedulas.length > 0
-                ? doc.cedulas
-                : doc?.cedula_profesional ? [{ descripcion: 'Cédula Prof.', numero: doc.cedula_profesional }] : []
-              ).map((c, i) => (
-                <p key={i} className="text-sm text-slate-500">{c.descripcion}: {c.numero}</p>
-              ))}
-              {doc?.telefono && <p className="text-sm text-slate-500">Tel.: {doc.telefono}</p>}
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-bold text-slate-600 uppercase tracking-wider">Receta Médica</p>
-              <p className="text-sm text-slate-500 mt-1">{fecha}</p>
-            </div>
-          </div>
+          <PrintDocHeader doc={doc} clinic={clinic} titulo="Receta Médica" />
 
           <div className="h-px bg-slate-200" />
 
@@ -382,6 +398,7 @@ function PrintReceta({ form, patient, doctor, onClose }) {
               {edad && <p className="text-sm text-slate-500">Edad: {edad}</p>}
               {patient.sexo && <p className="text-sm text-slate-500">Sexo: {patient.sexo === 'M' ? 'Masculino' : patient.sexo === 'F' ? 'Femenino' : patient.sexo}</p>}
               {patient.tipo_sangre && <p className="text-sm text-red-500 font-medium">Tipo sangre: {patient.tipo_sangre}</p>}
+              {patient.curp && <p className="text-xs text-slate-400 font-mono">CURP: {patient.curp}</p>}
             </div>
           </div>
 
@@ -414,7 +431,7 @@ function PrintReceta({ form, patient, doctor, onClose }) {
                     <div>
                       <p className="font-semibold text-slate-800">{med.nombre || '—'}</p>
                       <p className="text-sm text-slate-600 mt-0.5">
-                        {[med.dosis, med.frecuencia, med.duracion ? `por ${med.duracion} días` : null]
+                        {[med.dosis, med.via, med.frecuencia, med.duracion ? `por ${med.duracion} días` : null]
                           .filter(Boolean).join(' · ')}
                       </p>
                     </div>
@@ -464,9 +481,7 @@ function PrintReceta({ form, patient, doctor, onClose }) {
             </div>
           </div>
 
-          <p className="text-xs text-center text-slate-300 border-t border-slate-100 pt-3">
-            Generado por Nuvia · Sistema de Gestión Médica
-          </p>
+          <PrintNomFooter />
         </div>
       </div>
     </div>
@@ -474,7 +489,7 @@ function PrintReceta({ form, patient, doctor, onClose }) {
 }
 
 /* ── Constancia de descanso médico imprimible ── */
-function PrintDescanso({ form, patient, doctor, onClose }) {
+function PrintDescanso({ form, patient, doctor, clinic, onClose }) {
   const [docFull, setDocFull] = useState(null)
   useEffect(() => {
     if (!doctor?.id) return
@@ -519,23 +534,7 @@ function PrintDescanso({ form, patient, doctor, onClose }) {
         </div>
 
         <div className="print-area p-8 space-y-5 print:p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-slate-800">Dr. {doc?.nombre} {doc?.apellidos}</h1>
-              {doc?.especialidad       && <p className="text-sm text-slate-500">{doc.especialidad}</p>}
-              {(Array.isArray(doc?.cedulas) && doc.cedulas.length > 0
-                ? doc.cedulas
-                : doc?.cedula_profesional ? [{ descripcion: 'Cédula Prof.', numero: doc.cedula_profesional }] : []
-              ).map((c, i) => (
-                <p key={i} className="text-sm text-slate-500">{c.descripcion}: {c.numero}</p>
-              ))}
-              {doc?.telefono          && <p className="text-sm text-slate-500">Tel.: {doc.telefono}</p>}
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-bold text-slate-600 uppercase tracking-wider">Constancia de Descanso Médico</p>
-              <p className="text-sm text-slate-500 mt-1">{fecha}</p>
-            </div>
-          </div>
+          <PrintDocHeader doc={doc} clinic={clinic} titulo="Constancia de Descanso Médico" />
 
           <div className="h-px bg-slate-200" />
 
@@ -549,6 +548,7 @@ function PrintDescanso({ form, patient, doctor, onClose }) {
             <div className="flex gap-4 mt-1 flex-wrap">
               {edad         && <p className="text-sm text-slate-500">Edad: {edad}</p>}
               {patient.sexo && <p className="text-sm text-slate-500">Sexo: {patient.sexo === 'M' ? 'Masculino' : patient.sexo === 'F' ? 'Femenino' : patient.sexo}</p>}
+              {patient.curp && <p className="text-xs text-slate-400 font-mono">CURP: {patient.curp}</p>}
             </div>
           </div>
 
@@ -595,9 +595,7 @@ function PrintDescanso({ form, patient, doctor, onClose }) {
             </div>
           </div>
 
-          <p className="text-xs text-center text-slate-300 border-t border-slate-100 pt-3">
-            Generado por Nuvia · Sistema de Gestión Médica
-          </p>
+          <PrintNomFooter />
         </div>
       </div>
     </div>
@@ -699,6 +697,8 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
       patient_id: patient.id,
       doctor_id:  doctorId,
       clinic_id:  form.clinic_id || null,
+      // NOM-004: fecha y hora explícita de la consulta (se establece en primera creación)
+      fecha_hora: consultId ? undefined : new Date().toISOString(),
       // Signos vitales — null when empty
       peso:             form.peso             ? parseFloat(form.peso)             : null,
       talla:            form.talla            ? parseFloat(form.talla)            : null,
@@ -730,11 +730,25 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
     // Si faltan columnas nuevas, reintenta sin ellas
     const newCols = ['estudios_imagen','estudios_otro','peso','talla','temperatura',
       'presion_arterial','frec_cardiaca','saturacion_o2',
-      'descanso_activo','descanso_tipo','descanso_dias','descanso_fecha_inicio','descanso_motivo']
+      'descanso_activo','descanso_tipo','descanso_dias','descanso_fecha_inicio','descanso_motivo',
+      'fecha_hora']
     if (error?.message && newCols.some(c => error.message.includes(c))) {
       const fallback = { ...payload }
       newCols.forEach(c => delete fallback[c])
       error = await trySave(fallback)
+    }
+
+    // NOM-024: registrar en bitácora de auditoría (best-effort, no bloquea)
+    if (!error && doctorId) {
+      const action = consultId ? 'update' : 'create'
+      supabase.from('audit_log').insert([{
+        doctor_id:   doctorId,
+        patient_id:  patient.id,
+        record_type: 'consultation',
+        record_id:   consultId || null,
+        action,
+        details: { estado, motivo: form.motivo || null },
+      }]).then(() => {}) // fire-and-forget
     }
 
     return error ? error.message : null
@@ -801,7 +815,7 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
     onClose()
   }
 
-  const addMed = () => set('medicamentos_receta', [...form.medicamentos_receta, { nombre: '', dosis: '', frecuencia: '', duracion: '' }])
+  const addMed = () => set('medicamentos_receta', [...form.medicamentos_receta, { nombre: '', dosis: '', via: '', frecuencia: '', duracion: '' }])
 
   const problemasActivos = (patient.patient_problems || []).filter(p => p.estado === 'activo')
   const consultasPrevias = (patient.consultations || [])
@@ -1045,9 +1059,9 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
           <Section icon={Pill} title="Receta médica" color="text-red-500">
             {form.medicamentos_receta.length > 0 && (
               <div className="grid grid-cols-12 gap-2 mb-2 px-1">
-                <span className="col-span-4 text-xs text-slate-400 font-semibold">Medicamento</span>
+                <span className="col-span-5 text-xs text-slate-400 font-semibold">Medicamento / concentración</span>
                 <span className="col-span-2 text-xs text-slate-400 font-semibold">Dosis</span>
-                <span className="col-span-3 text-xs text-slate-400 font-semibold">Frecuencia</span>
+                <span className="col-span-2 text-xs text-slate-400 font-semibold">Frecuencia</span>
                 <span className="col-span-2 text-xs text-slate-400 font-semibold">Días</span>
                 <span className="col-span-1" />
               </div>
@@ -1267,13 +1281,19 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
       )}
 
       {showReceta && (
-        <PrintReceta form={form} patient={patient} doctor={doctor} onClose={() => setShowReceta(false)} />
+        <PrintReceta form={form} patient={patient} doctor={doctor}
+          clinic={clinics.find(c => c.id === form.clinic_id) || null}
+          onClose={() => setShowReceta(false)} />
       )}
       {showUltra && (
-        <PrintUltraSound form={form} patient={patient} doctor={doctor} onClose={() => setShowUltra(false)} />
+        <PrintUltraSound form={form} patient={patient} doctor={doctor}
+          clinic={clinics.find(c => c.id === form.clinic_id) || null}
+          onClose={() => setShowUltra(false)} />
       )}
       {showDescanso && (
-        <PrintDescanso form={form} patient={patient} doctor={doctor} onClose={() => setShowDescanso(false)} />
+        <PrintDescanso form={form} patient={patient} doctor={doctor}
+          clinic={clinics.find(c => c.id === form.clinic_id) || null}
+          onClose={() => setShowDescanso(false)} />
       )}
     </div>
   )

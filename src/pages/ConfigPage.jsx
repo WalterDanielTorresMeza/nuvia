@@ -701,7 +701,7 @@ function IntegracionesSection({ doctorId }) {
 /* ══════════════════════════════════════════ */
 export default function ConfigPage() {
   const { doctor, fetchDoctor } = useAuthStore()
-  const [form, setForm]     = useState({ nombre: '', apellidos: '', especialidad: '', telefono: '', email: '' })
+  const [form, setForm]     = useState({ nombre: '', apellidos: '', especialidad: '', curp: '', telefono: '', email: '' })
   const [cedulas, setCedulas] = useState([])   // [{ descripcion, numero }]
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
@@ -717,6 +717,7 @@ export default function ConfigPage() {
         nombre:       doctor.nombre       || '',
         apellidos:    doctor.apellidos    || '',
         especialidad: doctor.especialidad || '',
+        curp:         doctor.curp         || '',
         telefono:     doctor.telefono     || '',
         email:        doctor.email        || '',
       })
@@ -748,6 +749,7 @@ export default function ConfigPage() {
         nombre:       form.nombre.trim(),
         apellidos:    form.apellidos.trim(),
         especialidad: form.especialidad.trim() || null,
+        curp:         form.curp.trim().toUpperCase() || null,
         telefono:     form.telefono.trim()     || null,
         cedulas:      cedulasLimpias,
         // mantener columnas legacy sincronizadas para compatibilidad
@@ -810,6 +812,9 @@ export default function ConfigPage() {
             <Field label="Nombre *"      icon={User}        value={form.nombre}       onChange={e => set('nombre', e.target.value)}       placeholder="Walter" />
             <Field label="Apellidos *"   icon={User}        value={form.apellidos}    onChange={e => set('apellidos', e.target.value)}    placeholder="Torres Meza" />
             <Field label="Especialidad"  icon={Stethoscope}  value={form.especialidad} onChange={e => set('especialidad', e.target.value)} placeholder="Medicina General" />
+            <Field label="CURP del médico" icon={Hash} value={form.curp}
+              onChange={e => set('curp', e.target.value.toUpperCase())}
+              placeholder="ABCD123456HDFXXX01" maxLength={18} />
             <Field label="Teléfono"      icon={Phone}        value={form.telefono}     onChange={e => set('telefono', e.target.value)}     placeholder="+52 55 0000 0000" type="tel" />
             <Field label="Correo"        icon={Mail}         value={form.email}        disabled placeholder={form.email} />
           </div>
