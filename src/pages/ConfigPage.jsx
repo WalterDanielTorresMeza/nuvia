@@ -4,7 +4,8 @@ import { useAuthStore } from '../store/authStore'
 import {
   Loader2, Save, Check, User, Stethoscope, Phone, Mail,
   Hash, Shield, MapPin, Building2, Plus, Pencil, Trash2,
-  Star, X, FileText, Lock,
+  Star, X, FileText, Lock, Zap, MessageCircle, CreditCard,
+  Calendar, ChevronDown, ChevronRight, Eye, EyeOff,
 } from 'lucide-react'
 
 /* ── Preset colors for clinics ── */
@@ -452,6 +453,229 @@ function PinSection({ doctorId }) {
   )
 }
 
+/* ══ Sección integraciones externas ══ */
+function IntegSubsection({ title, icon: Icon, color, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="border border-slate-100 rounded-xl overflow-hidden">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left">
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+             style={{ background: color + '18' }}>
+          <Icon className="w-3.5 h-3.5" style={{ color }} />
+        </div>
+        <span className="font-medium text-slate-700 text-sm flex-1">{title}</span>
+        {open ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+      </button>
+      {open && <div className="p-4 space-y-3 bg-white">{children}</div>}
+    </div>
+  )
+}
+
+function SecretField({ label, value, onChange, placeholder }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div>
+      <label className="label">{label}</label>
+      <div className="relative">
+        <input
+          type={show ? 'text' : 'password'}
+          className="input pr-10 font-mono text-sm"
+          value={value} onChange={onChange}
+          placeholder={placeholder}
+          autoComplete="off"
+        />
+        <button type="button" onClick={() => setShow(s => !s)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+          {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function IntegracionesSection({ doctorId }) {
+  const [cfg, setCfg]   = useState(null)   // raw integraciones object
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved]   = useState(false)
+
+  /* helpers */
+  const get  = (path) => path.split('.').reduce((o, k) => o?.[k] ?? '', cfg || {})
+  const set  = (path, val) => {
+    const keys = path.split('.')
+    setCfg(prev => {
+      const next = { ...(prev || {}) }
+      let cur = next
+      keys.slice(0, -1).forEach(k => { cur[k] = { ...(cur[k] || {}) }; cur = cur[k] })
+      cur[keys[keys.length - 1]] = val
+      return next
+    })
+  }
+
+  useEffect(() => {
+    if (!doctorId) return
+    supabase.from('doctors').select('integraciones').eq('id', doctorId).single()
+      .then(({ data }) => setCfg(data?.integraciones || {}))
+  }, [doctorId])
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    await supabase.from('doctors').update({ integraciones: cfg }).eq('id', doctorId)
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 3000)
+  }
+
+  if (cfg === null) return null
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+        <Zap className="w-4 h-4 text-slate-400" />
+        <h2 className="font-semibold text-slate-700">Integraciones</h2>
+        <span className="text-xs text-slate-400 ml-1">APIs externas y servicios conectados</span>
+      </div>
+
+      <form onSubmit={handleSave} className="p-6 space-y-3">
+        <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+          Configura las credenciales de cada servicio externo. Se almacenan de forma segura en tu perfil y sólo se usan desde esta cuenta.
+        </p>
+
+        {/* ── Email ── */}
+        <IntegSubsection title="Correo electrónico (envío automático)" icon={Mail} color="#0ea5e9">
+          <div>
+            <label className="label">Proveedor</label>
+            <select className="input" value={get('email.provider')} onChange={e => set('email.provider', e.target.value)}>
+              <option value="">Seleccionar...</option>
+              <option value="resend">Resend</option>
+              <option value="sendgrid">SendGrid</option>
+              <option value="smtp">SMTP personalizado</option>
+            </select>
+          </div>
+          <SecretField label="API Key / Contraseña" value={get('email.api_key')}
+            onChange={e => set('email.api_key', e.target.value)}
+            placeholder="re_xxxxxx... / SG.xxxxxxxx..." />
+          {get('email.provider') === 'smtp' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Host SMTP</label>
+                  <input className="input" placeholder="smtp.gmail.com"
+                    value={get('email.smtp_host')} onChange={e => set('email.smtp_host', e.target.value)} />
+                </div>
+                <div>
+                  <label className="label">Puerto</label>
+                  <input className="input" type="number" placeholder="587"
+                    value={get('email.smtp_port')} onChange={e => set('email.smtp_port', e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className="label">Usuario SMTP</label>
+                <input className="input" placeholder="tu@correo.com"
+                  value={get('email.smtp_user')} onChange={e => set('email.smtp_user', e.target.value)} />
+              </div>
+            </>
+          )}
+          <div>
+            <label className="label">Correo remitente (From)</label>
+            <input className="input" type="email" placeholder="noreply@tudominio.com"
+              value={get('email.from')} onChange={e => set('email.from', e.target.value)} />
+          </div>
+          <p className="text-xs text-slate-400">
+            Se usa para enviar confirmaciones de cita, recordatorios y notificaciones a pacientes.
+          </p>
+        </IntegSubsection>
+
+        {/* ── WhatsApp ── */}
+        <IntegSubsection title="WhatsApp Business API" icon={MessageCircle} color="#25d366">
+          <SecretField label="Token de acceso permanente"
+            value={get('whatsapp.token')} onChange={e => set('whatsapp.token', e.target.value)}
+            placeholder="EAAxxxxxxxx..." />
+          <div>
+            <label className="label">Phone Number ID</label>
+            <input className="input font-mono text-sm" placeholder="1234567890123"
+              value={get('whatsapp.phone_number_id')} onChange={e => set('whatsapp.phone_number_id', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Business Account ID</label>
+            <input className="input font-mono text-sm" placeholder="9876543210"
+              value={get('whatsapp.business_account_id')} onChange={e => set('whatsapp.business_account_id', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Número de WhatsApp (con código de país)</label>
+            <input className="input" placeholder="+52 55 1234 5678"
+              value={get('whatsapp.phone')} onChange={e => set('whatsapp.phone', e.target.value)} />
+          </div>
+          <p className="text-xs text-slate-400">
+            Requiere cuenta verificada en Meta Business Suite. Se usa para confirmar y recordar citas por WhatsApp.
+          </p>
+        </IntegSubsection>
+
+        {/* ── Stripe ── */}
+        <IntegSubsection title="Pagos con tarjeta (Stripe)" icon={CreditCard} color="#635bff">
+          <SecretField label="Secret Key (sk_live_... / sk_test_...)"
+            value={get('stripe.secret_key')} onChange={e => set('stripe.secret_key', e.target.value)}
+            placeholder="sk_live_xxxxxx..." />
+          <div>
+            <label className="label">Publishable Key (pk_live_... / pk_test_...)</label>
+            <input className="input font-mono text-sm" placeholder="pk_live_xxxxxx..."
+              value={get('stripe.publishable_key')} onChange={e => set('stripe.publishable_key', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Webhook Secret (opcional)</label>
+            <input className="input font-mono text-sm" placeholder="whsec_xxxxxx..."
+              value={get('stripe.webhook_secret')} onChange={e => set('stripe.webhook_secret', e.target.value)} />
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="stripe_test" className="rounded"
+              checked={get('stripe.test_mode') === true || get('stripe.test_mode') === 'true'}
+              onChange={e => set('stripe.test_mode', e.target.checked)} />
+            <label htmlFor="stripe_test" className="text-sm text-slate-600 cursor-pointer">Modo prueba (test mode)</label>
+          </div>
+          <p className="text-xs text-slate-400">
+            Habilita el cobro con tarjeta directamente desde el Punto de Venta. Las llaves de prueba no generan cobros reales.
+          </p>
+        </IntegSubsection>
+
+        {/* ── Google Calendar ── */}
+        <IntegSubsection title="Google Calendar" icon={Calendar} color="#4285f4">
+          <div>
+            <label className="label">Client ID de OAuth 2.0</label>
+            <input className="input font-mono text-sm" placeholder="xxxxxxxxxx-xxxxxx.apps.googleusercontent.com"
+              value={get('google.client_id')} onChange={e => set('google.client_id', e.target.value)} />
+          </div>
+          <SecretField label="Client Secret"
+            value={get('google.client_secret')} onChange={e => set('google.client_secret', e.target.value)}
+            placeholder="GOCSPX-xxxxxxxx..." />
+          <div>
+            <label className="label">Calendar ID (deja vacío para el calendario principal)</label>
+            <input className="input font-mono text-sm" placeholder="primary o tu-correo@gmail.com"
+              value={get('google.calendar_id')} onChange={e => set('google.calendar_id', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Refresh Token (se genera tras autorizar)</label>
+            <input className="input font-mono text-sm" placeholder="1//xxxxxxxxxx..."
+              value={get('google.refresh_token')} onChange={e => set('google.refresh_token', e.target.value)} />
+          </div>
+          <p className="text-xs text-slate-400">
+            Sincroniza automáticamente las citas de Nuvia con tu Google Calendar. Crea las credenciales en{' '}
+            <span className="font-medium text-slate-500">console.cloud.google.com</span>.
+          </p>
+        </IntegSubsection>
+
+        <div className="flex justify-end pt-2">
+          <button type="submit" disabled={saving}
+            className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+            {saving ? 'Guardando...' : saved ? '¡Guardado!' : 'Guardar integraciones'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 /* ══════════════════════════════════════════ */
 export default function ConfigPage() {
   const { doctor, fetchDoctor } = useAuthStore()
@@ -600,6 +824,9 @@ export default function ConfigPage() {
 
       {/* ── PIN de acciones ── */}
       {doctor?.id && <PinSection doctorId={doctor.id} />}
+
+      {/* ── Integraciones ── */}
+      {doctor?.id && <IntegracionesSection doctorId={doctor.id} />}
 
       {/* App info */}
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-center">

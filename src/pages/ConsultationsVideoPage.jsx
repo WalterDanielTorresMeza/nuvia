@@ -6,8 +6,9 @@ import { calcEdad } from '../utils'
 import {
   Video, PhoneOff, Copy, Check, Loader2, ChevronRight,
   Clock, CalendarDays, Wifi, ExternalLink, Plus,
-  PanelRightClose, PanelRightOpen, AlertCircle,
+  PanelRightClose, PanelRightOpen, AlertCircle, FileText,
 } from 'lucide-react'
+import ConsultationModal from '../components/patients/ConsultationModal'
 import { FaDroplet, FaMars, FaVenus } from 'react-icons/fa6'
 import { cn } from '../utils'
 import NewAppointmentModal from '../components/appointments/NewAppointmentModal'
@@ -193,11 +194,12 @@ function VideoCard({ apt, onStart, onCopy, copied, onComplete }) {
 
 /* ── Video call modal (embedded Jitsi + patient sidebar) ── */
 function VideoCallModal({ apt, onClose, onComplete }) {
-  const [sidebar, setSidebar] = useState(false)
-  const p              = apt.patients || {}
-  const edad           = calcEdad(p.fecha_nacimiento)
-  const roomUrl        = getRoomUrl(apt.id)
-  const hora = new Date(apt.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+  const [sidebar, setSidebar]         = useState(false)
+  const [consultaOpen, setConsultaOpen] = useState(false)
+  const p       = apt.patients || {}
+  const edad    = calcEdad(p.fecha_nacimiento)
+  const roomUrl = getRoomUrl(apt.id)
+  const hora    = new Date(apt.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
 
   return (
     <div className="fixed inset-0 z-[9999] flex flex-col bg-slate-900">
@@ -229,11 +231,18 @@ function VideoCallModal({ apt, onClose, onComplete }) {
             {sidebar ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
           </button>
           <button
+            onClick={() => setConsultaOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-colors"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            Registrar consulta
+          </button>
+          <button
             onClick={() => { onComplete?.(apt.id); onClose() }}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold transition-colors"
           >
             <PhoneOff className="w-3.5 h-3.5" />
-            Finalizar videoconsulta
+            Finalizar
           </button>
         </div>
       </div>
@@ -250,6 +259,16 @@ function VideoCallModal({ apt, onClose, onComplete }) {
             className="w-full h-full border-0"
           />
         </div>
+
+        {/* Consultation modal (floats above video call) */}
+        {consultaOpen && p.id && (
+          <ConsultationModal
+            patient={{ ...p, id: apt.patient_id, patient_problems: [], consultations: [] }}
+            consultation={null}
+            onClose={() => setConsultaOpen(false)}
+            onSaved={() => setConsultaOpen(false)}
+          />
+        )}
 
         {/* Patient sidebar */}
         {sidebar && (
@@ -508,15 +527,8 @@ export default function ConsultationsVideoPage() {
             </div>
             <p className="text-slate-700 font-semibold">No hay videoconsultas programadas</p>
             <p className="text-slate-400 text-sm mt-1">
-              Agenda tu primera videoconsulta para comenzar
+              Usa el botón <strong>+ Nueva videoconsulta</strong> para agendar una
             </p>
-            <button
-              onClick={() => setShowNewModal(true)}
-              className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl text-sm font-semibold transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Agendar videoconsulta
-            </button>
           </div>
 
         ) : (

@@ -10,9 +10,10 @@ import {
   X, Save, CheckCircle, Loader2, Plus, Trash2,
   Bold, Italic, List, ListOrdered,
   AlertCircle, Calendar, BookOpen, ChevronDown, ChevronUp,
-  Stethoscope, Pill, FileText, Activity, ClipboardList, Printer
+  Stethoscope, Pill, FileText, Activity, ClipboardList, Printer,
+  Heart, Moon,
 } from 'lucide-react'
-import { cn } from '../../utils'
+import { cn, calcIMC, clasificarIMC } from '../../utils'
 import BodyMap from './BodyMap'
 import { CIE10 } from '../../data/cie10'
 
@@ -452,6 +453,127 @@ function PrintReceta({ form, patient, doctor, onClose }) {
   )
 }
 
+/* ── Constancia de descanso médico imprimible ── */
+function PrintDescanso({ form, patient, doctor, onClose }) {
+  const [docFull, setDocFull] = useState(null)
+  useEffect(() => {
+    if (!doctor?.id) return
+    supabase.from('doctors')
+      .select('nombre, apellidos, especialidad, cedula_profesional, telefono')
+      .eq('id', doctor.id).single()
+      .then(({ data }) => { if (data) setDocFull(data) })
+  }, [doctor?.id])
+  const doc   = docFull || doctor
+  const fecha = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
+  const edad  = patient.fecha_nacimiento
+    ? `${new Date().getFullYear() - new Date(patient.fecha_nacimiento).getFullYear()} años` : ''
+
+  const tipo   = form.descanso_tipo || 'Reposo médico'
+  const dias   = form.descanso_dias
+  const inicio = form.descanso_fecha_inicio
+    ? new Date(form.descanso_fecha_inicio + 'T12:00:00').toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
+    : null
+  const fin = (form.descanso_fecha_inicio && dias)
+    ? (() => {
+        const d = new Date(form.descanso_fecha_inicio + 'T12:00:00')
+        d.setDate(d.getDate() + Number(dias) - 1)
+        return d.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
+      })()
+    : null
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-[60] p-4 overflow-y-auto"
+      onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 print:hidden">
+          <h2 className="font-bold text-slate-800">Constancia de Descanso Médico</h2>
+          <div className="flex items-center gap-2">
+            <button onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-semibold transition-colors">
+              <Printer className="w-4 h-4" /> Imprimir / PDF
+            </button>
+            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+              <X className="w-5 h-5 text-slate-400" />
+            </button>
+          </div>
+        </div>
+
+        <div className="print-area p-8 space-y-5 print:p-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">Dr. {doc?.nombre} {doc?.apellidos}</h1>
+              {doc?.especialidad       && <p className="text-sm text-slate-500">{doc.especialidad}</p>}
+              {doc?.cedula_profesional && <p className="text-sm text-slate-500">Cédula Prof.: {doc.cedula_profesional}</p>}
+              {doc?.telefono          && <p className="text-sm text-slate-500">Tel.: {doc.telefono}</p>}
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-bold text-slate-600 uppercase tracking-wider">Constancia de Descanso Médico</p>
+              <p className="text-sm text-slate-500 mt-1">{fecha}</p>
+            </div>
+          </div>
+
+          <div className="h-px bg-slate-200" />
+
+          <p className="text-sm text-slate-700 leading-relaxed">
+            El que suscribe, <strong>Dr. {doc?.nombre} {doc?.apellidos}</strong>
+            {doc?.especialidad ? `, especialista en ${doc.especialidad},` : ','} hace constar que el paciente:
+          </p>
+
+          <div className="bg-slate-50 rounded-xl p-4">
+            <p className="font-semibold text-slate-800 text-base">{patient.nombre} {patient.apellidos}</p>
+            <div className="flex gap-4 mt-1 flex-wrap">
+              {edad         && <p className="text-sm text-slate-500">Edad: {edad}</p>}
+              {patient.sexo && <p className="text-sm text-slate-500">Sexo: {patient.sexo === 'M' ? 'Masculino' : patient.sexo === 'F' ? 'Femenino' : patient.sexo}</p>}
+            </div>
+          </div>
+
+          <p className="text-sm text-slate-700 leading-relaxed">
+            Requiere <strong>{tipo}</strong>
+            {dias ? ` por <strong>${dias} día${dias > 1 ? 's' : ''}</strong>` : ''}
+            {inicio ? `, a partir del ${inicio}` : ''}
+            {fin && dias > 1 ? ` al ${fin}` : ''}.
+          </p>
+
+          {form.descanso_motivo && (
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Motivo / Diagnóstico</p>
+              <p className="text-sm text-slate-700">{form.descanso_motivo}</p>
+            </div>
+          )}
+
+          {(form.diagnostico || form.diagnostico_cie10) && (
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Diagnóstico registrado</p>
+              <p className="text-sm text-slate-700">
+                {form.diagnostico_cie10 && <span className="font-mono text-slate-400 mr-2">{form.diagnostico_cie10}</span>}
+                {form.diagnostico}
+              </p>
+            </div>
+          )}
+
+          <p className="text-sm text-slate-500 italic">
+            Se extiende la presente constancia a petición del interesado para los fines que le convengan.
+          </p>
+
+          <div className="flex justify-end pt-6">
+            <div className="text-center min-w-[180px]">
+              <div className="border-t border-slate-800 pt-2">
+                <p className="text-sm font-medium text-slate-700">Dr. {doc?.nombre} {doc?.apellidos}</p>
+                {doc?.cedula_profesional && <p className="text-xs text-slate-400">Céd. {doc.cedula_profesional}</p>}
+                <p className="text-xs text-slate-400">Firma y sello</p>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-xs text-center text-slate-300 border-t border-slate-100 pt-3">
+            Generado por Nuvia · Sistema de Gestión Médica
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ══════════════════════════════════════════════ */
 export default function ConsultationModal({ patient, consultation, onClose, onSaved }) {
   const { doctor } = useAuthStore()
@@ -462,8 +584,12 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
   const [consultId, setConsultId] = useState(consultation?.id || null)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState('')
-  const [showReceta, setShowReceta] = useState(false)
-  const [showUltra,  setShowUltra]  = useState(false)
+  const [showReceta,  setShowReceta]  = useState(false)
+  const [showUltra,   setShowUltra]   = useState(false)
+  const [showDescanso, setShowDescanso] = useState(false)
+
+  const imc = (form.peso && form.talla) ? calcIMC(parseFloat(form.peso), parseFloat(form.talla)) : null
+  const imcInfo = imc ? clasificarIMC(imc) : null
 
   const [form, setForm] = useState({
     motivo:                  consultation?.motivo || '',
@@ -482,6 +608,19 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
     clinic_id:               consultation?.clinic_id || activeClinic?.id || '',
     estudios_imagen:         consultation?.estudios_imagen || [],
     estudios_otro:           consultation?.estudios_otro || '',
+    // Signos vitales
+    peso:             consultation?.peso             || '',
+    talla:            consultation?.talla            || '',
+    temperatura:      consultation?.temperatura      || '',
+    presion_arterial: consultation?.presion_arterial || '',
+    frec_cardiaca:    consultation?.frec_cardiaca    || '',
+    saturacion_o2:    consultation?.saturacion_o2    || '',
+    // Descanso médico
+    descanso_activo:       consultation?.descanso_activo       || false,
+    descanso_tipo:         consultation?.descanso_tipo         || 'Reposo en casa',
+    descanso_dias:         consultation?.descanso_dias         || '',
+    descanso_fecha_inicio: consultation?.descanso_fecha_inicio || '',
+    descanso_motivo:       consultation?.descanso_motivo       || '',
   })
 
   // Sync clinic_id when activeClinic loads (only for new consultations)
@@ -530,6 +669,19 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
       patient_id: patient.id,
       doctor_id:  doctorId,
       clinic_id:  form.clinic_id || null,
+      // Signos vitales — null when empty
+      peso:             form.peso             ? parseFloat(form.peso)             : null,
+      talla:            form.talla            ? parseFloat(form.talla)            : null,
+      temperatura:      form.temperatura      ? parseFloat(form.temperatura)      : null,
+      presion_arterial: form.presion_arterial || null,
+      frec_cardiaca:    form.frec_cardiaca    ? parseInt(form.frec_cardiaca)      : null,
+      saturacion_o2:    form.saturacion_o2    ? parseInt(form.saturacion_o2)      : null,
+      // Descanso
+      descanso_activo:       form.descanso_activo || false,
+      descanso_tipo:         form.descanso_activo ? (form.descanso_tipo || null) : null,
+      descanso_dias:         form.descanso_activo && form.descanso_dias ? parseInt(form.descanso_dias) : null,
+      descanso_fecha_inicio: form.descanso_activo && form.descanso_fecha_inicio ? form.descanso_fecha_inicio : null,
+      descanso_motivo:       form.descanso_activo ? (form.descanso_motivo || null) : null,
     }
     if (!payload.proxima_cita) delete payload.proxima_cita
 
@@ -546,10 +698,12 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
     let error = await trySave(payload)
 
     // Si faltan columnas nuevas, reintenta sin ellas
-    if (error?.message?.includes('estudios_imagen') || error?.message?.includes('estudios_otro')) {
+    const newCols = ['estudios_imagen','estudios_otro','peso','talla','temperatura',
+      'presion_arterial','frec_cardiaca','saturacion_o2',
+      'descanso_activo','descanso_tipo','descanso_dias','descanso_fecha_inicio','descanso_motivo']
+    if (error?.message && newCols.some(c => error.message.includes(c))) {
       const fallback = { ...payload }
-      delete fallback.estudios_imagen
-      delete fallback.estudios_otro
+      newCols.forEach(c => delete fallback[c])
       error = await trySave(fallback)
     }
 
@@ -733,6 +887,66 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
             </div>
           </Section>
 
+          {/* Signos vitales + IMC */}
+          <Section icon={Heart} title="Signos vitales" color="text-rose-500" collapsible>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="label">Peso (kg)</label>
+                <input type="number" step="0.1" min="0" className="input text-sm"
+                  placeholder="70.0" value={form.peso}
+                  onChange={e => set('peso', e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Talla (cm)</label>
+                <input type="number" step="0.1" min="0" className="input text-sm"
+                  placeholder="170" value={form.talla}
+                  onChange={e => set('talla', e.target.value)} />
+              </div>
+              <div>
+                <label className="label">IMC</label>
+                <div className={cn(
+                  'input text-sm flex items-center gap-2',
+                  imc ? 'bg-slate-50' : 'bg-slate-50 text-slate-400'
+                )}>
+                  {imc ? (
+                    <>
+                      <span className="font-bold text-slate-700">{imc}</span>
+                      {imcInfo && (
+                        <span className={cn('text-xs font-semibold px-1.5 py-0.5 rounded-full', imcInfo.color)}>
+                          {imcInfo.label}
+                        </span>
+                      )}
+                    </>
+                  ) : <span>—</span>}
+                </div>
+              </div>
+              <div>
+                <label className="label">Temperatura (°C)</label>
+                <input type="number" step="0.1" min="30" max="45" className="input text-sm"
+                  placeholder="36.5" value={form.temperatura}
+                  onChange={e => set('temperatura', e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Presión arterial</label>
+                <input type="text" className="input text-sm"
+                  placeholder="120/80 mmHg" value={form.presion_arterial}
+                  onChange={e => set('presion_arterial', e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Frec. cardíaca (bpm)</label>
+                <input type="number" min="0" max="300" className="input text-sm"
+                  placeholder="72" value={form.frec_cardiaca}
+                  onChange={e => set('frec_cardiaca', e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Saturación O₂ (%)</label>
+                <input type="number" min="0" max="100" className="input text-sm"
+                  placeholder="98" value={form.saturacion_o2}
+                  onChange={e => set('saturacion_o2', e.target.value)} />
+              </div>
+            </div>
+          </Section>
+
           {/* Diagnóstico */}
           <Section icon={ClipboardList} title="Diagnóstico" color="text-orange-500">
             <div className="grid grid-cols-2 gap-4">
@@ -815,18 +1029,26 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
                   onDelete={() => set('medicamentos_receta', form.medicamentos_receta.filter((_, idx) => idx !== i))} />
               ))}
             </div>
-            <div className="mt-3 flex items-center justify-between">
+            <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
               <button onClick={addMed}
                 className="flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors">
                 <Plus className="w-4 h-4" /> Agregar medicamento
               </button>
-              {form.medicamentos_receta.length > 0 && (
-                <button onClick={() => {
-                  if (window.confirm('¿Borrar toda la receta?')) set('medicamentos_receta', [])
-                }} className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 font-medium transition-colors">
-                  <Trash2 className="w-3.5 h-3.5" /> Borrar receta completa
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {form.medicamentos_receta.length > 0 && (
+                  <>
+                    <button onClick={() => setShowReceta(true)}
+                      className="flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-800 font-medium transition-colors">
+                      <Printer className="w-4 h-4" /> Imprimir receta
+                    </button>
+                    <button onClick={() => {
+                      if (window.confirm('¿Borrar toda la receta?')) set('medicamentos_receta', [])
+                    }} className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 font-medium transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" /> Borrar receta completa
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </Section>
 
@@ -841,6 +1063,69 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
                 <label className="label">Plan de tratamiento</label>
                 <RichEditor editor={editorPlan} />
               </div>
+            </div>
+          </Section>
+
+          {/* Descanso médico */}
+          <Section icon={Moon} title="Descanso médico" color="text-indigo-500" collapsible>
+            <div className="space-y-4">
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <div
+                  onClick={() => set('descanso_activo', !form.descanso_activo)}
+                  className={cn(
+                    'w-11 h-6 rounded-full transition-colors relative flex-shrink-0 cursor-pointer',
+                    form.descanso_activo ? 'bg-indigo-500' : 'bg-slate-200'
+                  )}>
+                  <div className={cn(
+                    'absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform',
+                    form.descanso_activo ? 'translate-x-6' : 'translate-x-1'
+                  )} />
+                </div>
+                <span className="text-sm font-medium text-slate-700">
+                  {form.descanso_activo ? 'Descanso médico indicado' : 'Sin descanso médico'}
+                </span>
+              </label>
+
+              {form.descanso_activo && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="label">Tipo de descanso</label>
+                    <select className="input text-sm" value={form.descanso_tipo}
+                      onChange={e => set('descanso_tipo', e.target.value)}>
+                      <option>Reposo en casa</option>
+                      <option>Reposo en cama</option>
+                      <option>Incapacidad laboral</option>
+                      <option>Restricción de actividad física</option>
+                      <option>Otro</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Número de días</label>
+                    <input type="number" min="1" className="input text-sm" placeholder="3"
+                      value={form.descanso_dias}
+                      onChange={e => set('descanso_dias', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Fecha de inicio</label>
+                    <input type="date" className="input text-sm"
+                      value={form.descanso_fecha_inicio}
+                      onChange={e => set('descanso_fecha_inicio', e.target.value)} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="label">Motivo / Diagnóstico para la constancia</label>
+                    <input type="text" className="input text-sm"
+                      placeholder="Ej. Infección respiratoria aguda"
+                      value={form.descanso_motivo}
+                      onChange={e => set('descanso_motivo', e.target.value)} />
+                  </div>
+                  <div className="col-span-2">
+                    <button type="button" onClick={() => setShowDescanso(true)}
+                      className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 font-medium transition-colors">
+                      <Printer className="w-4 h-4" /> Generar constancia de descanso
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </Section>
 
@@ -946,6 +1231,9 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
       )}
       {showUltra && (
         <PrintUltraSound form={form} patient={patient} doctor={doctor} onClose={() => setShowUltra(false)} />
+      )}
+      {showDescanso && (
+        <PrintDescanso form={form} patient={patient} doctor={doctor} onClose={() => setShowDescanso(false)} />
       )}
     </div>
   )

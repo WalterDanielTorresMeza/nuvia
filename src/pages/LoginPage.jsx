@@ -286,10 +286,19 @@ export default function LoginPage() {
             </div>
 
             {/* Trust badges */}
-            <div className="mt-6 flex justify-center gap-6">
+            <div className="mt-6 flex justify-center gap-6 flex-wrap">
               {['🔒 Datos encriptados', '☁ Respaldo automático', '🩺 Solo para médicos'].map(t => (
                 <span key={t} className="text-[10px] text-slate-400 font-medium">{t}</span>
               ))}
+            </div>
+
+            {/* NOM compliance */}
+            <div className="mt-3 text-center">
+              <p className="text-[9px] text-slate-300 leading-relaxed">
+                Sistema de información en salud que cumple con{' '}
+                <span className="font-semibold">NOM-004-SSA3-2012</span> (Expediente clínico) y{' '}
+                <span className="font-semibold">NOM-024-SSA3-2010</span> (Sistemas de información de registro electrónico para la salud)
+              </p>
             </div>
           </div>
         </div>
