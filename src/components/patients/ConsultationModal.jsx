@@ -177,7 +177,7 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
   useEffect(() => {
     if (!doctor?.id) return
     supabase.from('doctors')
-      .select('nombre, apellidos, especialidad, cedula_profesional, telefono')
+      .select('nombre, apellidos, especialidad, cedula_profesional, cedula_especialidad, telefono')
       .eq('id', doctor.id).single()
       .then(({ data }) => { if (data) setDocFull(data) })
   }, [doctor?.id])
@@ -213,7 +213,7 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
             <div>
               <h1 className="text-xl font-bold text-slate-800">Dr. {doc?.nombre} {doc?.apellidos}</h1>
               {doc?.especialidad    && <p className="text-sm text-slate-500">{doc.especialidad}</p>}
-              {doc?.cedula_profesional && <p className="text-sm text-slate-500">Cédula Prof.: {doc.cedula_profesional}</p>}
+              {doc?.cedula_profesional && <p className="text-sm text-slate-500">Cédula Prof.: {doc.cedula_profesional}{doc.cedula_especialidad ? ` · Esp.: ${doc.cedula_especialidad}` : ''}</p>}
               {doc?.telefono        && <p className="text-sm text-slate-500">Tel.: {doc.telefono}</p>}
             </div>
             <div className="text-right">
@@ -293,6 +293,7 @@ function PrintUltraSound({ form, patient, doctor, onClose }) {
               <div className="border-t border-slate-800 pt-2">
                 <p className="text-sm font-medium text-slate-700">Dr. {doc?.nombre} {doc?.apellidos}</p>
                 {doc?.cedula_profesional && <p className="text-xs text-slate-400">Céd. {doc.cedula_profesional}</p>}
+                {doc?.cedula_especialidad && <p className="text-xs text-slate-400">Esp. {doc.cedula_especialidad}</p>}
                 <p className="text-xs text-slate-400">Firma y sello</p>
               </div>
             </div>
@@ -313,7 +314,7 @@ function PrintReceta({ form, patient, doctor, onClose }) {
   useEffect(() => {
     if (!doctor?.id) return
     supabase.from('doctors')
-      .select('nombre, apellidos, especialidad, cedula_profesional, telefono')
+      .select('nombre, apellidos, especialidad, cedula_profesional, cedula_especialidad, telefono')
       .eq('id', doctor.id).single()
       .then(({ data }) => { if (data) setDocFull(data) })
   }, [doctor?.id])
@@ -348,7 +349,7 @@ function PrintReceta({ form, patient, doctor, onClose }) {
             <div>
               <h1 className="text-xl font-bold text-slate-800">Dr. {doc?.nombre} {doc?.apellidos}</h1>
               {doc?.especialidad && <p className="text-sm text-slate-500">{doc.especialidad}</p>}
-              {doc?.cedula_profesional && <p className="text-sm text-slate-500">Cédula Prof.: {doc.cedula_profesional}</p>}
+              {doc?.cedula_profesional && <p className="text-sm text-slate-500">Cédula Prof.: {doc.cedula_profesional}{doc.cedula_especialidad ? ` · Esp.: ${doc.cedula_especialidad}` : ''}</p>}
               {doc?.telefono && <p className="text-sm text-slate-500">Tel.: {doc.telefono}</p>}
             </div>
             <div className="text-right">
@@ -439,6 +440,7 @@ function PrintReceta({ form, patient, doctor, onClose }) {
               <div className="border-t border-slate-800 pt-2">
                 <p className="text-sm font-medium text-slate-700">Dr. {doc?.nombre} {doc?.apellidos}</p>
                 {doc?.cedula_profesional && <p className="text-xs text-slate-400">Céd. {doc.cedula_profesional}</p>}
+                {doc?.cedula_especialidad && <p className="text-xs text-slate-400">Esp. {doc.cedula_especialidad}</p>}
                 <p className="text-xs text-slate-400">Firma y sello</p>
               </div>
             </div>
@@ -459,7 +461,7 @@ function PrintDescanso({ form, patient, doctor, onClose }) {
   useEffect(() => {
     if (!doctor?.id) return
     supabase.from('doctors')
-      .select('nombre, apellidos, especialidad, cedula_profesional, telefono')
+      .select('nombre, apellidos, especialidad, cedula_profesional, cedula_especialidad, telefono')
       .eq('id', doctor.id).single()
       .then(({ data }) => { if (data) setDocFull(data) })
   }, [doctor?.id])
@@ -503,7 +505,7 @@ function PrintDescanso({ form, patient, doctor, onClose }) {
             <div>
               <h1 className="text-xl font-bold text-slate-800">Dr. {doc?.nombre} {doc?.apellidos}</h1>
               {doc?.especialidad       && <p className="text-sm text-slate-500">{doc.especialidad}</p>}
-              {doc?.cedula_profesional && <p className="text-sm text-slate-500">Cédula Prof.: {doc.cedula_profesional}</p>}
+              {doc?.cedula_profesional && <p className="text-sm text-slate-500">Cédula Prof.: {doc.cedula_profesional}{doc.cedula_especialidad ? ` · Esp.: ${doc.cedula_especialidad}` : ''}</p>}
               {doc?.telefono          && <p className="text-sm text-slate-500">Tel.: {doc.telefono}</p>}
             </div>
             <div className="text-right">
@@ -560,6 +562,7 @@ function PrintDescanso({ form, patient, doctor, onClose }) {
               <div className="border-t border-slate-800 pt-2">
                 <p className="text-sm font-medium text-slate-700">Dr. {doc?.nombre} {doc?.apellidos}</p>
                 {doc?.cedula_profesional && <p className="text-xs text-slate-400">Céd. {doc.cedula_profesional}</p>}
+                {doc?.cedula_especialidad && <p className="text-xs text-slate-400">Esp. {doc.cedula_especialidad}</p>}
                 <p className="text-xs text-slate-400">Firma y sello</p>
               </div>
             </div>
@@ -1226,6 +1229,16 @@ export default function ConsultationModal({ patient, consultation, onClose, onSa
 
         </aside>
       </div>
+      {/* Floating print recipe button — visible no matter scroll position */}
+      {form.medicamentos_receta.length > 0 && !showReceta && (
+        <button
+          onClick={() => setShowReceta(true)}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl shadow-xl text-sm font-semibold transition-all hover:scale-105 active:scale-95"
+        >
+          <Printer className="w-4 h-4" /> Imprimir receta
+        </button>
+      )}
+
       {showReceta && (
         <PrintReceta form={form} patient={patient} doctor={doctor} onClose={() => setShowReceta(false)} />
       )}

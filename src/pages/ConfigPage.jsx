@@ -701,7 +701,7 @@ function IntegracionesSection({ doctorId }) {
 /* ══════════════════════════════════════════ */
 export default function ConfigPage() {
   const { doctor, fetchDoctor } = useAuthStore()
-  const [form, setForm]     = useState({ nombre: '', apellidos: '', especialidad: '', cedula: '', telefono: '', email: '' })
+  const [form, setForm]     = useState({ nombre: '', apellidos: '', especialidad: '', cedula_profesional: '', cedula_especialidad: '', telefono: '', email: '' })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [error, setError]   = useState('')
@@ -713,12 +713,13 @@ export default function ConfigPage() {
   useEffect(() => {
     if (doctor) {
       setForm({
-        nombre:       doctor.nombre       || '',
-        apellidos:    doctor.apellidos    || '',
-        especialidad: doctor.especialidad || '',
-        cedula:       doctor.cedula       || '',
-        telefono:     doctor.telefono     || '',
-        email:        doctor.email        || '',
+        nombre:              doctor.nombre              || '',
+        apellidos:           doctor.apellidos           || '',
+        especialidad:        doctor.especialidad        || '',
+        cedula_profesional:  doctor.cedula_profesional  || doctor.cedula || '',
+        cedula_especialidad: doctor.cedula_especialidad || '',
+        telefono:            doctor.telefono            || '',
+        email:               doctor.email               || '',
       })
     }
   }, [doctor])
@@ -731,7 +732,15 @@ export default function ConfigPage() {
     setSaving(true); setError('')
     const { error: dbErr } = await supabase
       .from('doctors')
-      .update({ nombre: form.nombre.trim(), apellidos: form.apellidos.trim(), especialidad: form.especialidad.trim() || null, cedula: form.cedula.trim() || null, telefono: form.telefono.trim() || null })
+      .update({
+        nombre:              form.nombre.trim(),
+        apellidos:           form.apellidos.trim(),
+        especialidad:        form.especialidad.trim()        || null,
+        cedula:              form.cedula_profesional.trim()  || null,
+        cedula_profesional:  form.cedula_profesional.trim()  || null,
+        cedula_especialidad: form.cedula_especialidad.trim() || null,
+        telefono:            form.telefono.trim()            || null,
+      })
       .eq('id', doctor.id)
     setSaving(false)
     if (dbErr) { setError(dbErr.message); return }
@@ -787,9 +796,28 @@ export default function ConfigPage() {
             <Field label="Nombre *"      icon={User}        value={form.nombre}       onChange={e => set('nombre', e.target.value)}       placeholder="Walter" />
             <Field label="Apellidos *"   icon={User}        value={form.apellidos}    onChange={e => set('apellidos', e.target.value)}    placeholder="Torres Meza" />
             <Field label="Especialidad"  icon={Stethoscope}  value={form.especialidad} onChange={e => set('especialidad', e.target.value)} placeholder="Medicina General" />
-            <Field label="Cédula prof."  icon={Hash}         value={form.cedula}       onChange={e => set('cedula', e.target.value)}       placeholder="12345678" />
             <Field label="Teléfono"      icon={Phone}        value={form.telefono}     onChange={e => set('telefono', e.target.value)}     placeholder="+52 55 0000 0000" type="tel" />
             <Field label="Correo"        icon={Mail}         value={form.email}        disabled placeholder={form.email} />
+          </div>
+
+          {/* Cédulas profesionales */}
+          <div className="border-t border-slate-100 pt-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+              <Hash className="w-3.5 h-3.5" /> Cédulas profesionales
+            </p>
+            <p className="text-xs text-slate-400 mb-3">Aparecen en recetas, constancias y solicitudes de estudios al imprimir.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Cédula de médico general / titular"
+                icon={Hash}
+                value={form.cedula_profesional}
+                onChange={e => set('cedula_profesional', e.target.value)}
+                placeholder="12345678" />
+              <Field label="Cédula de especialidad (opcional)"
+                icon={Hash}
+                value={form.cedula_especialidad}
+                onChange={e => set('cedula_especialidad', e.target.value)}
+                placeholder="87654321" />
+            </div>
           </div>
 
           {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</p>}
